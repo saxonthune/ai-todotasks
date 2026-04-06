@@ -2,148 +2,185 @@
 set -euo pipefail
 
 # ─── ai-todotasks installer ─────────────────────────────────────────────────
-# Installs the todo-task system into a project by creating symlinks
-# from .claude/ to the ai-todotasks source directory.
+# Usage (remote):
+#   curl -fsSL https://raw.githubusercontent.com/saxonthune/ai-todotasks/main/install.sh | bash
 #
-# Usage:
-#   From your project root:
-#     /path/to/ai-todotasks/install.sh
+# Usage (local, from repo root):
+#   bash install.sh [--force|--update]
 #
-#   Or with git subtree (after adding):
-#     bash .todo-task-system/install.sh
+# Flags:
+#   --force    Overwrite existing skill files (never overwrites task-config.sh)
+#   --update   Alias for --force
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FORCE=false
+for arg in "$@"; do
+  case "$arg" in
+    --force|--update) FORCE=true ;;
+  esac
+done
+
 PROJECT_ROOT="$(pwd)"
 
-echo "═══ ai-todotasks installer ═══"
-echo ""
-echo "Source:  ${SCRIPT_DIR}"
-echo "Target:  ${PROJECT_ROOT}"
-echo ""
+# ─── Validate git repo ───────────────────────────────────────────────────────
 
-# ─── Validate ────────────────────────────────────────────────────────────────
-
-if [[ ! -d "${PROJECT_ROOT}/.git" ]]; then
+if [[ ! -d "${PROJECT_ROOT}/.git" ]] && [[ ! -f "${PROJECT_ROOT}/.git" ]]; then
   echo "ERROR: Not a git repository. Run this from your project root."
   exit 1
 fi
 
-if [[ ! -f "${SCRIPT_DIR}/skills/todo-task/SKILL.md" ]]; then
-  echo "ERROR: Can't find ai-todotasks source files at ${SCRIPT_DIR}"
-  exit 1
+# ─── Detect local vs remote mode ─────────────────────────────────────────────
+# Local mode: script is running from within the source repo (skills/ dir present)
+# Remote mode: script was piped from curl — download tarball from GitHub
+
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ "${BASH_SOURCE[0]}" != "-" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 
-# ─── Create .claude directories ──────────────────────────────────────────────
-
-mkdir -p "${PROJECT_ROOT}/.claude/skills"
-mkdir -p "${PROJECT_ROOT}/.claude/agents"
-
-# ─── Symlink skills ──────────────────────────────────────────────────────────
-
-# Compute relative path from .claude/skills/ to the source
-SKILLS_REL=$(python3 -c "import os.path; print(os.path.relpath('${SCRIPT_DIR}/skills', '${PROJECT_ROOT}/.claude/skills'))" 2>/dev/null \
-  || python -c "import os.path; print(os.path.relpath('${SCRIPT_DIR}/skills', '${PROJECT_ROOT}/.claude/skills'))" 2>/dev/null \
-  || realpath --relative-to="${PROJECT_ROOT}/.claude/skills" "${SCRIPT_DIR}/skills")
-
-AGENTS_REL=$(python3 -c "import os.path; print(os.path.relpath('${SCRIPT_DIR}/agents', '${PROJECT_ROOT}/.claude/agents'))" 2>/dev/null \
-  || python -c "import os.path; print(os.path.relpath('${SCRIPT_DIR}/agents', '${PROJECT_ROOT}/.claude/agents'))" 2>/dev/null \
-  || realpath --relative-to="${PROJECT_ROOT}/.claude/agents" "${SCRIPT_DIR}/agents")
-
-# todo-task skill
-if [[ -L "${PROJECT_ROOT}/.claude/skills/todo-task" ]]; then
-  echo "Updating symlink: .claude/skills/todo-task"
-  rm "${PROJECT_ROOT}/.claude/skills/todo-task"
-elif [[ -d "${PROJECT_ROOT}/.claude/skills/todo-task" ]]; then
-  echo "WARNING: .claude/skills/todo-task exists as a directory. Skipping (remove it manually to use symlink)."
-  SKIP_SKILL=true
+REMOTE_MODE=true
+if [[ -n "$SCRIPT_DIR" ]] && [[ -f "${SCRIPT_DIR}/skills/todo-task/SKILL.md" ]]; then
+  REMOTE_MODE=false
 fi
 
-if [[ "${SKIP_SKILL:-}" != "true" ]]; then
-  ln -s "${SKILLS_REL}/todo-task" "${PROJECT_ROOT}/.claude/skills/todo-task"
-  echo "Linked: .claude/skills/todo-task"
-fi
+# ─── Header ──────────────────────────────────────────────────────────────────
 
-# execute-plan scripts
-if [[ -L "${PROJECT_ROOT}/.claude/skills/execute-plan" ]]; then
-  echo "Updating symlink: .claude/skills/execute-plan"
-  rm "${PROJECT_ROOT}/.claude/skills/execute-plan"
-elif [[ -d "${PROJECT_ROOT}/.claude/skills/execute-plan" ]]; then
-  echo "WARNING: .claude/skills/execute-plan exists as a directory. Skipping (remove it manually to use symlink)."
-  SKIP_EXEC=true
-fi
+echo "ai-todotasks installer"
+echo "======================"
+echo ""
 
-if [[ "${SKIP_EXEC:-}" != "true" ]]; then
-  ln -s "${SKILLS_REL}/execute-plan" "${PROJECT_ROOT}/.claude/skills/execute-plan"
-  echo "Linked: .claude/skills/execute-plan"
-fi
+INSTALLED_FILES=()
+SKIPPED_FILES=()
+SCAFFOLDED_FILES=()
 
-# plan-executor agent
-if [[ -L "${PROJECT_ROOT}/.claude/agents/plan-executor.md" ]]; then
-  rm "${PROJECT_ROOT}/.claude/agents/plan-executor.md"
-elif [[ -f "${PROJECT_ROOT}/.claude/agents/plan-executor.md" ]]; then
-  echo "WARNING: .claude/agents/plan-executor.md exists as a file. Skipping."
-  SKIP_AGENT=true
-fi
+# ─── Acquire source files ────────────────────────────────────────────────────
 
-if [[ "${SKIP_AGENT:-}" != "true" ]]; then
-  ln -s "${AGENTS_REL}/plan-executor.md" "${PROJECT_ROOT}/.claude/agents/plan-executor.md"
-  echo "Linked: .claude/agents/plan-executor.md"
-fi
+TMPDIR_CREATED=""
+SOURCE_DIR=""
 
-# ─── Create task-config.sh if missing ────────────────────────────────────────
+cleanup() {
+  if [[ -n "$TMPDIR_CREATED" ]]; then
+    rm -rf "$TMPDIR_CREATED"
+  fi
+}
+trap cleanup EXIT
 
-# task-config.sh must be a real file (not symlinked) because it's project-specific.
-# It lives alongside the symlinked execute-plan scripts, so we need it in the
-# actual resolved directory.
-CONFIG_TARGET="${PROJECT_ROOT}/.claude/skills/execute-plan/task-config.sh"
-# Since execute-plan is a symlink, task-config.sh needs to go in the source dir
-# OR we need a project-local override. For now, check if one exists in the source.
-# The real task-config.sh should be project-local, not in the shared repo.
-
-# We put task-config.sh in the project root's .claude/skills/execute-plan/
-# But that's a symlink... so we need a different approach.
-# Solution: the scripts look for task-config.sh via SCRIPT_DIR, which resolves
-# through the symlink to the ai-todotasks source. We need the project to have
-# its own config that the scripts can find.
-#
-# Best approach: scripts check for a project-local config first.
-# For now, we'll note this in the output.
-
-if [[ ! -f "${PROJECT_ROOT}/todo-tasks/task-config.sh" ]]; then
-  mkdir -p "${PROJECT_ROOT}/todo-tasks"
-  cp "${SCRIPT_DIR}/skills/execute-plan/task-config.template.sh" "${PROJECT_ROOT}/todo-tasks/task-config.sh"
+if $REMOTE_MODE; then
+  echo "Source: remote: github.com/saxonthune/ai-todotasks@main"
   echo ""
-  echo "Created: todo-tasks/task-config.sh (from template)"
-  echo "  >>> Edit this file to set your project's build/test commands <<<"
+
+  TMPDIR_CREATED="$(mktemp -d)"
+  TARBALL="${TMPDIR_CREATED}/ai-todotasks.tar.gz"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "https://github.com/saxonthune/ai-todotasks/archive/refs/heads/main.tar.gz" -o "$TARBALL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q "https://github.com/saxonthune/ai-todotasks/archive/refs/heads/main.tar.gz" -O "$TARBALL"
+  else
+    echo "ERROR: Neither curl nor wget found. Cannot download files."
+    exit 1
+  fi
+
+  tar -xzf "$TARBALL" -C "$TMPDIR_CREATED"
+  SOURCE_DIR="${TMPDIR_CREATED}/ai-todotasks-main"
+else
+  echo "Source: local: ${SCRIPT_DIR}/skills/todo-task"
+  echo ""
+  SOURCE_DIR="$SCRIPT_DIR"
 fi
 
-# ─── Create todo-tasks directory ─────────────────────────────────────────────
+# ─── Copy skill files ─────────────────────────────────────────────────────────
 
-mkdir -p "${PROJECT_ROOT}/todo-tasks"
+SKILL_FILES=(
+  "skills/todo-task/SKILL.md"
+  "skills/todo-task/execute-plan.sh"
+  "skills/todo-task/launch.sh"
+  "skills/todo-task/launch-chain.sh"
+  "skills/todo-task/execute-chain.sh"
+  "skills/todo-task/status.sh"
+  "skills/todo-task/monitor.sh"
+)
 
-if [[ ! -f "${PROJECT_ROOT}/todo-tasks/.gitignore" ]]; then
-  cat > "${PROJECT_ROOT}/todo-tasks/.gitignore" << 'EOF'
-# Lifecycle directories — local-only state
+mkdir -p "${PROJECT_ROOT}/.claude/skills/todo-task"
+
+for rel in "${SKILL_FILES[@]}"; do
+  src="${SOURCE_DIR}/${rel}"
+  filename="$(basename "$rel")"
+  dst="${PROJECT_ROOT}/.claude/skills/todo-task/${filename}"
+
+  if [[ ! -f "$src" ]]; then
+    echo "WARNING: Source file not found: $src"
+    continue
+  fi
+
+  if [[ -f "$dst" ]] && ! $FORCE; then
+    SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+  else
+    cp "$src" "$dst"
+    if [[ "$filename" == *.sh ]]; then
+      chmod +x "$dst"
+    fi
+    INSTALLED_FILES+=(".claude/skills/todo-task/${filename}")
+  fi
+done
+
+# ─── Scaffold .todo-tasks/ ───────────────────────────────────────────────────
+
+mkdir -p "${PROJECT_ROOT}/.todo-tasks"
+
+# task-config.sh — never overwrite (always preserve user config)
+CONFIG_DST="${PROJECT_ROOT}/.todo-tasks/task-config.sh"
+CONFIG_SRC="${SOURCE_DIR}/skills/todo-task/task-config.template.sh"
+
+if [[ ! -f "$CONFIG_DST" ]]; then
+  if [[ -f "$CONFIG_SRC" ]]; then
+    cp "$CONFIG_SRC" "$CONFIG_DST"
+  else
+    echo "WARNING: task-config.template.sh not found, skipping task-config.sh"
+  fi
+  SCAFFOLDED_FILES+=(".todo-tasks/task-config.sh (edit this with your build/test commands)")
+fi
+
+# .gitignore — only create if missing
+GITIGNORE_DST="${PROJECT_ROOT}/.todo-tasks/.gitignore"
+if [[ ! -f "$GITIGNORE_DST" ]]; then
+  cat > "$GITIGNORE_DST" << 'GITIGNORE'
 .running/
 .done/
 .archived/
-
-# Logs
 *.log
-EOF
-  echo "Created: todo-tasks/.gitignore"
+GITIGNORE
+  SCAFFOLDED_FILES+=(".todo-tasks/.gitignore")
 fi
 
-echo ""
-echo "═══ Installation complete ═══"
-echo ""
+# ─── Output summary ──────────────────────────────────────────────────────────
+
+if [[ ${#INSTALLED_FILES[@]} -gt 0 ]]; then
+  echo "Installed:"
+  for f in "${INSTALLED_FILES[@]}"; do
+    echo "  $f"
+  done
+  echo ""
+fi
+
+if [[ ${#SCAFFOLDED_FILES[@]} -gt 0 ]]; then
+  echo "Scaffolded:"
+  for f in "${SCAFFOLDED_FILES[@]}"; do
+    echo "  $f"
+  done
+  echo ""
+fi
+
+if [[ ${#SKIPPED_FILES[@]} -gt 0 ]]; then
+  echo "Skipped (already exist):"
+  for f in "${SKIPPED_FILES[@]}"; do
+    echo "  $f"
+  done
+  echo "  (pass --force or --update to overwrite)"
+  echo ""
+fi
+
 echo "Next steps:"
-echo "  1. Edit todo-tasks/task-config.sh with your project's build/test commands"
+echo "  1. Edit .todo-tasks/task-config.sh with your project's build/test commands"
 echo "  2. Create a task:  /todo-task create <description>"
 echo "  3. Groom it:       /todo-task groom <slug>"
 echo "  4. Execute it:     /todo-task execute <slug>"
-echo ""
-echo "Note: The execute-plan scripts source task-config.sh from their own"
-echo "directory (SCRIPT_DIR). Since that's a symlink to the shared repo,"
-echo "you may need to update the scripts to also check for a project-local"
-echo "config. See intention.md for the planned fix."
