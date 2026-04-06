@@ -9,13 +9,15 @@ set -euo pipefail
 #   bash install.sh [--force|--update]
 #
 # Flags:
-#   --force    Overwrite existing skill files (never overwrites task-config.sh)
-#   --update   Alias for --force
+#   --force    Overwrite existing skill files non-interactively (never overwrites task-config.sh)
+#   --update   Interactive update: show version info, release notes, per-file diffs with y/n prompts
 
 FORCE=false
+UPDATE=false
 for arg in "$@"; do
   case "$arg" in
-    --force|--update) FORCE=true ;;
+    --force) FORCE=true ;;
+    --update) UPDATE=true ;;
   esac
 done
 
@@ -51,6 +53,7 @@ echo ""
 INSTALLED_FILES=()
 SKIPPED_FILES=()
 SCAFFOLDED_FILES=()
+UPDATED_FILES=()
 
 # ─── Acquire source files ────────────────────────────────────────────────────
 
@@ -88,7 +91,7 @@ else
   SOURCE_DIR="$SCRIPT_DIR"
 fi
 
-# ─── Copy skill files ─────────────────────────────────────────────────────────
+# ─── Skill files list ────────────────────────────────────────────────────────
 
 SKILL_FILES=(
   "skills/todo-task/SKILL.md"
@@ -101,6 +104,154 @@ SKILL_FILES=(
 )
 
 mkdir -p "${PROJECT_ROOT}/.claude/skills/todo-task"
+
+# ─── Interactive update mode ──────────────────────────────────────────────────
+
+if $UPDATE; then
+  VERSION_FILE="${PROJECT_ROOT}/.todo-tasks/.version"
+  AVAILABLE_VERSION_FILE="${SOURCE_DIR}/VERSION"
+
+  INSTALLED_VER=""
+  AVAILABLE_VER=""
+
+  if [[ -f "$AVAILABLE_VERSION_FILE" ]]; then
+    AVAILABLE_VER="$(cat "$AVAILABLE_VERSION_FILE" | tr -d '[:space:]')"
+  fi
+
+  if [[ -f "$VERSION_FILE" ]]; then
+    INSTALLED_VER="$(cat "$VERSION_FILE" | tr -d '[:space:]')"
+    echo "Installed: ${INSTALLED_VER}"
+    echo "Available: ${AVAILABLE_VER:-unknown}"
+    echo ""
+
+    if [[ -n "$AVAILABLE_VER" ]] && [[ "$INSTALLED_VER" == "$AVAILABLE_VER" ]]; then
+      echo "Already up to date."
+      exit 0
+    fi
+  else
+    echo "No version found (pre-versioning install). Showing all changes."
+    echo ""
+  fi
+
+  # Step B: Release notes
+  CHANGELOG_SRC="${SOURCE_DIR}/CHANGELOG.md"
+  if [[ -f "$CHANGELOG_SRC" ]] && [[ -n "$INSTALLED_VER" ]]; then
+    # Print changelog sections with version > installed version
+    NEW_SECTIONS=""
+    in_section=false
+    section_ver=""
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^##[[:space:]]([0-9]{4}\.[0-9]{2}\.[0-9]{2}[a-z]?)$ ]]; then
+        section_ver="${BASH_REMATCH[1]}"
+        if [[ "$section_ver" > "$INSTALLED_VER" ]]; then
+          in_section=true
+          NEW_SECTIONS+="${line}"$'\n'
+        else
+          in_section=false
+        fi
+      elif $in_section; then
+        NEW_SECTIONS+="${line}"$'\n'
+      fi
+    done < "$CHANGELOG_SRC"
+
+    if [[ -n "$NEW_SECTIONS" ]]; then
+      echo "What's new:"
+      echo "$NEW_SECTIONS"
+    fi
+  elif [[ -f "$CHANGELOG_SRC" ]] && [[ -z "$INSTALLED_VER" ]]; then
+    echo "What's new:"
+    cat "$CHANGELOG_SRC"
+    echo ""
+  fi
+
+  # Step C: Per-file prompts
+  # Detect if stdin is a terminal
+  INTERACTIVE_STDIN=true
+  if [[ ! -t 0 ]]; then
+    INTERACTIVE_STDIN=false
+    echo "Non-interactive stdin detected. Skipping existing files."
+    echo "Run 'bash install.sh --update' locally for interactive mode, or use --force to overwrite all."
+    echo ""
+  fi
+
+  for rel in "${SKILL_FILES[@]}"; do
+    src="${SOURCE_DIR}/${rel}"
+    filename="$(basename "$rel")"
+    dst="${PROJECT_ROOT}/.claude/skills/todo-task/${filename}"
+
+    if [[ ! -f "$src" ]]; then
+      echo "WARNING: Source file not found: $src"
+      continue
+    fi
+
+    if [[ ! -f "$dst" ]]; then
+      # New file — auto-install without prompt
+      cp "$src" "$dst"
+      if [[ "$filename" == *.sh ]]; then
+        chmod +x "$dst"
+      fi
+      INSTALLED_FILES+=(".claude/skills/todo-task/${filename} (new)")
+    elif diff -q "$dst" "$src" >/dev/null 2>&1; then
+      # Identical — skip silently
+      SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+    else
+      # Differs — show diff and prompt
+      if $INTERACTIVE_STDIN; then
+        echo "--- .claude/skills/todo-task/${filename}"
+        diff -u "$dst" "$src" | head -20 || true
+        echo ""
+        read -r -p "Update .claude/skills/todo-task/${filename}? [y/N] " answer </dev/tty
+        if [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+          cp "$src" "$dst"
+          if [[ "$filename" == *.sh ]]; then
+            chmod +x "$dst"
+          fi
+          UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+        else
+          SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+        fi
+      else
+        SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+      fi
+    fi
+  done
+
+  # Step D: Write new version
+  mkdir -p "${PROJECT_ROOT}/.todo-tasks"
+  if [[ -n "$AVAILABLE_VER" ]]; then
+    echo "$AVAILABLE_VER" > "${PROJECT_ROOT}/.todo-tasks/.version"
+  fi
+
+  # Update summary
+  echo ""
+  if [[ ${#INSTALLED_FILES[@]} -gt 0 ]]; then
+    echo "New files installed:"
+    for f in "${INSTALLED_FILES[@]}"; do
+      echo "  $f"
+    done
+    echo ""
+  fi
+
+  if [[ ${#UPDATED_FILES[@]} -gt 0 ]]; then
+    echo "Updated:"
+    for f in "${UPDATED_FILES[@]}"; do
+      echo "  $f"
+    done
+    echo ""
+  fi
+
+  if [[ ${#SKIPPED_FILES[@]} -gt 0 ]]; then
+    echo "Skipped (unchanged or declined):"
+    for f in "${SKIPPED_FILES[@]}"; do
+      echo "  $f"
+    done
+    echo ""
+  fi
+
+  exit 0
+fi
+
+# ─── Copy skill files (fresh install or --force) ──────────────────────────────
 
 for rel in "${SKILL_FILES[@]}"; do
   src="${SOURCE_DIR}/${rel}"
@@ -148,8 +299,15 @@ if [[ ! -f "$GITIGNORE_DST" ]]; then
 .done/
 .archived/
 *.log
+.version
 GITIGNORE
   SCAFFOLDED_FILES+=(".todo-tasks/.gitignore")
+fi
+
+# Write installed version
+VERSION_SRC="${SOURCE_DIR}/VERSION"
+if [[ -f "$VERSION_SRC" ]]; then
+  cp "$VERSION_SRC" "${PROJECT_ROOT}/.todo-tasks/.version"
 fi
 
 # ─── Output summary ──────────────────────────────────────────────────────────
@@ -175,7 +333,7 @@ if [[ ${#SKIPPED_FILES[@]} -gt 0 ]]; then
   for f in "${SKIPPED_FILES[@]}"; do
     echo "  $f"
   done
-  echo "  (pass --force or --update to overwrite)"
+  echo "  (pass --force to overwrite, or --update for interactive mode)"
   echo ""
 fi
 
