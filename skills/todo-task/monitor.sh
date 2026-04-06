@@ -188,7 +188,7 @@ render_frame() {
   local n_done=0 n_failed=0
   for rl in "${recent_lines[@]}"; do
     local rs_type; rs_type=$(echo "$rl" | cut -f1)
-    case "$rs_type" in done) ((n_done++)) ;; failed) ((n_failed++)) ;; esac
+    case "$rs_type" in done) n_done=$((n_done + 1)) ;; failed) n_failed=$((n_failed + 1)) ;; esac
   done
   local n_pending=${#pending_lines[@]}
 
