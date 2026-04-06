@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-TODO="${REPO_ROOT}/todo-tasks"
+TODO="${REPO_ROOT}/.todo-tasks"
 
 # ─── Parse Arguments ─────────────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ for i in "${!PHASES[@]}"; do
   if [[ -f "$in_todo" || -f "$in_running" || -f "$in_done" ]]; then
     continue
   fi
-  echo "ERROR: Plan '${slug}' not found in todo-tasks/, .running/, or .done/"
+  echo "ERROR: Plan '${slug}' not found in .todo-tasks/, .running/, or .done/"
   exit 1
 done
 

@@ -25,7 +25,7 @@ Route based on `$ARGUMENTS[0]`:
 Run the status script and display results:
 
 ```bash
-bash .claude/skills/execute-plan/status.sh
+bash .claude/skills/todo-task/status.sh
 ```
 
 If `$ARGUMENTS` includes `--archive`, run with `--archive-success` flag.
@@ -36,7 +36,7 @@ After showing status, handle completed agents:
 
 **Successful agents:** Archive automatically:
 ```bash
-bash .claude/skills/execute-plan/status.sh --archive-success
+bash .claude/skills/todo-task/status.sh --archive-success
 ```
 
 **Conflict agents (success but merge failed):** Check if the branch was already merged manually. If `git log` shows the agent's commits on the current branch, the conflict was already resolved — clean up the worktree, delete the branch, and archive. If not, treat as a failed merge and ask the user.
@@ -74,7 +74,7 @@ Examples: `fix-login-timeout.md`, `add-user-search.md`, `stale-cache-after-deplo
 
 ### Step 2: Write the task file
 
-Write to `todo-tasks/{slug}.md`:
+Write to `.todo-tasks/{slug}.md`:
 
 ```markdown
 # {Title}
@@ -112,11 +112,11 @@ Tell the user the file was created and they can groom it with `/todo-task groom 
 - **Reference files.** If you know which files are involved, list them.
 - **One task per file.** Three bugs = three tasks.
 - **Don't over-specify the solution.** Describe the problem and desired outcome.
-- **Check for duplicates.** Scan `todo-tasks/` first.
+- **Check for duplicates.** Scan `.todo-tasks/` first.
 
 ### Epic Tasks
 
-If the task belongs to an existing epic (`{epic}.epic.md` in `todo-tasks/`), prefix: `{epic}-{nn}-{slug}.md`
+If the task belongs to an existing epic (`{epic}.epic.md` in `.todo-tasks/`), prefix: `{epic}-{nn}-{slug}.md`
 
 ---
 
@@ -130,7 +130,7 @@ Refine a pending task from a rough idea into an executable spec that a headless 
 
 If no slug provided:
 ```bash
-ls todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|todo-tasks/||;s|\.md$||'
+ls .todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|.todo-tasks/||;s|\.md$||'
 ```
 
 Present tasks to the user with `AskUserQuestion`:
@@ -150,7 +150,7 @@ AskUserQuestion({
 
 ### Step 2: Read the task
 
-Read `todo-tasks/{slug}.md`. Understand the motivation and scope. If it belongs to an epic (`{epic}-` prefix), also read `{epic}.epic.md` for context.
+Read `.todo-tasks/{slug}.md`. Understand the motivation and scope. If it belongs to an epic (`{epic}-` prefix), also read `{epic}.epic.md` for context.
 
 ### Step 3: Research the codebase
 
@@ -203,11 +203,11 @@ Evaluate whether the plan can be executed by a single headless agent session. A 
 - **Completable in a single focused pass**
 - **All design decisions already resolved**
 
-If the task is too large (10+ files, multiple independent features, needs mid-implementation judgment), propose splitting into 2-3 smaller tasks. Write each as a separate file in `todo-tasks/` and tell the user.
+If the task is too large (10+ files, multiple independent features, needs mid-implementation judgment), propose splitting into 2-3 smaller tasks. Write each as a separate file in `.todo-tasks/` and tell the user.
 
 ### Step 6: Rewrite as executable spec
 
-After the user has answered all questions and confirmed the approach, rewrite `todo-tasks/{slug}.md` in place with this structure:
+After the user has answered all questions and confirmed the approach, rewrite `.todo-tasks/{slug}.md` in place with this structure:
 
 ```markdown
 # {Title}
@@ -294,7 +294,7 @@ Launch a headless agent to implement a groomed plan.
 
 1. **Select** — If no slug, list available plans:
    ```bash
-   ls todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|todo-tasks/||;s|\.md$||'
+   ls .todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|.todo-tasks/||;s|\.md$||'
    ```
    Ask the user which plan to execute.
 
@@ -302,34 +302,34 @@ Launch a headless agent to implement a groomed plan.
 
 3. **Validate** — Run the script with `--validate-only` to check preconditions (clean tree, plan exists, correct branch, claude CLI available). Do NOT manually check git status or other prerequisites — the script handles all of that.
    ```bash
-   bash .claude/skills/execute-plan/execute-plan.sh {slug} --validate-only
+   bash .claude/skills/todo-task/execute-plan.sh {slug} --validate-only
    ```
    If validation fails, show the error and tell the user what to fix. Do NOT proceed to launch.
 
 4. **Launch** — If validation passes, background the full run:
    ```bash
-   mkdir -p todo-tasks/.running
-   nohup bash .claude/skills/execute-plan/execute-plan.sh {slug} > todo-tasks/.running/{slug}.log 2>&1 &
+   mkdir -p .todo-tasks/.running
+   nohup bash .claude/skills/todo-task/execute-plan.sh {slug} > .todo-tasks/.running/{slug}.log 2>&1 &
    ```
 
 5. **Report** — Tell the user:
    - Agent is running in the background
-   - Check progress: `tail -f todo-tasks/.running/{slug}.log`
-   - Check results: `todo-tasks/.done/{slug}.result.md`
+   - Check progress: `tail -f .todo-tasks/.running/{slug}.log`
+   - Check results: `.todo-tasks/.done/{slug}.result.md`
    - Check status: `/todo-task status`
 
 ### Options
 
 - `--no-merge` — leave branch for manual review instead of auto-merging:
   ```bash
-  nohup bash .claude/skills/execute-plan/execute-plan.sh {slug} --no-merge > todo-tasks/.running/{slug}.log 2>&1 &
+  nohup bash .claude/skills/todo-task/execute-plan.sh {slug} --no-merge > .todo-tasks/.running/{slug}.log 2>&1 &
   ```
 
 ### Chain execution
 
 If `--chain` is passed with multiple slugs, launch directly — the chain script handles its own precondition checks:
 ```bash
-nohup bash .claude/skills/execute-plan/launch-chain.sh {chain-name} {slug1} {slug2} ... > todo-tasks/.running/chain-{chain-name}.log 2>&1 &
+nohup bash .claude/skills/todo-task/launch-chain.sh {chain-name} {slug1} {slug2} ... > .todo-tasks/.running/chain-{chain-name}.log 2>&1 &
 ```
 
 ---
@@ -341,13 +341,13 @@ Launch a live dashboard that refreshes every 5 seconds, showing running agents, 
 Tell the user to run this in a separate terminal:
 
 ```bash
-watch -n5 bash .claude/skills/execute-plan/monitor.sh
+watch -n5 bash .claude/skills/todo-task/monitor.sh
 ```
 
 Or run it once for a snapshot:
 
 ```bash
-bash .claude/skills/execute-plan/monitor.sh
+bash .claude/skills/todo-task/monitor.sh
 ```
 
 ---
@@ -357,13 +357,13 @@ bash .claude/skills/execute-plan/monitor.sh
 The todo-task system is a directory-as-state-machine. Files move through directories to represent lifecycle state.
 
 ```
-todo-tasks/              <- PENDING  (create creates, groom refines)
+.todo-tasks/              <- PENDING  (create creates, groom refines)
     |
-todo-tasks/.running/     <- EXECUTING (execute-plan moves files here)
+.todo-tasks/.running/     <- EXECUTING (execute-plan moves files here)
     |
-todo-tasks/.done/        <- FINISHED  (agent writes .result.md here)
+.todo-tasks/.done/        <- FINISHED  (agent writes .result.md here)
     |
-todo-tasks/.archived/    <- REVIEWED  (archived after triage)
+.todo-tasks/.archived/    <- REVIEWED  (archived after triage)
 ```
 
 ### File Types
@@ -384,7 +384,7 @@ When you manually resolve a merge conflict from an agent (e.g., merging the agen
    ```bash
    git worktree remove <worktree-path>
    ```
-   The worktree path is in the `.result.md` file (e.g., `../tinyforum-agent-{slug}`).
+   The worktree path is in the `.result.md` file.
 
 2. **Delete the agent branch** (it's already merged):
    ```bash
@@ -393,15 +393,15 @@ When you manually resolve a merge conflict from an agent (e.g., merging the agen
 
 3. **Archive the task:**
    ```bash
-   bash .claude/skills/execute-plan/status.sh --archive-success
+   bash .claude/skills/todo-task/status.sh --archive-success
    ```
 
 If you skip these steps, future sessions will see stale worktrees and unresolved conflicts in status output, and may try to re-resolve them.
 
 ## Rules
 
-- `create` only writes to `todo-tasks/`
-- `groom` only modifies existing files in `todo-tasks/`
+- `create` only writes to `.todo-tasks/`
+- `groom` only modifies existing files in `.todo-tasks/`
 - `execute` moves files through the lifecycle via shell scripts
 - Never manually move files to `.running/`, `.done/`, or `.archived/`
 - Never write `.result.md` files (agents create those)

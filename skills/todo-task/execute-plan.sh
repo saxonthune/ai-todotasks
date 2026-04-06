@@ -5,7 +5,7 @@ set -euo pipefail
 # Creates a worktree, runs headless Claude to implement a plan, verifies, merges.
 #
 # Usage: execute-plan.sh <plan-name> [--no-merge]
-#   plan-name: filename (without .md) in todo-tasks/
+#   plan-name: filename (without .md) in .todo-tasks/
 #   --no-merge: leave branch ready for manual merge instead of auto-merging
 
 # ─── Parse Arguments ──────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ if [[ -z "$PLAN_SLUG" ]]; then
   echo "Usage: execute-plan.sh <plan-name> [--no-merge]"
   echo ""
   echo "Available plans:"
-  ls todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|todo-tasks/||;s|\.md$||' | sed 's/^/  /'
+  ls .todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|.todo-tasks/||;s|\.md$||' | sed 's/^/  /'
   exit 1
 fi
 
@@ -37,7 +37,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Source project-specific config (install cmd, build cmd, budgets, etc.)
-source "${SCRIPT_DIR}/task-config.sh"
+if [[ -f "${REPO_ROOT}/.todo-tasks/task-config.sh" ]]; then
+  source "${REPO_ROOT}/.todo-tasks/task-config.sh"
+else
+  source "${SCRIPT_DIR}/task-config.sh"
+fi
 
 TRUNK="$(git branch --show-current)"
 BRANCH="${TRUNK}_claude_${PLAN_SLUG}"
@@ -48,10 +52,10 @@ WORKTREE_DIR="${REPO_ROOT}/../${WORKTREE_PREFIX}-${PLAN_SLUG}"
 echo "═══ Plan Executor: ${PLAN_SLUG} ═══"
 echo ""
 
-PLAN_SOURCE_FILE="${REPO_ROOT}/todo-tasks/${PLAN_SLUG}.md"
+PLAN_SOURCE_FILE="${REPO_ROOT}/.todo-tasks/${PLAN_SLUG}.md"
 
 if [[ ! -f "${PLAN_SOURCE_FILE}" ]]; then
-  echo "ERROR: Plan file not found: todo-tasks/${PLAN_SLUG}.md"
+  echo "ERROR: Plan file not found: .todo-tasks/${PLAN_SLUG}.md"
   exit 1
 fi
 
@@ -80,9 +84,9 @@ if [[ "$VALIDATE_ONLY" == "true" ]]; then
 fi
 
 # Move plan to .running/ — this IS the state transition
-mkdir -p "${REPO_ROOT}/todo-tasks/.running"
-mv "${PLAN_SOURCE_FILE}" "${REPO_ROOT}/todo-tasks/.running/${PLAN_SLUG}.md"
-PLAN_FILE="todo-tasks/.running/${PLAN_SLUG}.md"
+mkdir -p "${REPO_ROOT}/.todo-tasks/.running"
+mv "${PLAN_SOURCE_FILE}" "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.md"
+PLAN_FILE=".todo-tasks/.running/${PLAN_SLUG}.md"
 
 echo "Plan:      ${PLAN_FILE}"
 echo "Trunk:     ${TRUNK}"
@@ -113,8 +117,8 @@ echo ""
 
 echo "── Copying plan into worktree ──"
 
-mkdir -p "${WORKTREE_DIR}/todo-tasks"
-cp "${REPO_ROOT}/${PLAN_FILE}" "${WORKTREE_DIR}/todo-tasks/${PLAN_SLUG}.md"
+mkdir -p "${WORKTREE_DIR}/.todo-tasks"
+cp "${REPO_ROOT}/${PLAN_FILE}" "${WORKTREE_DIR}/.todo-tasks/${PLAN_SLUG}.md"
 echo "Copied plan from ${PLAN_FILE}"
 echo ""
 
@@ -136,7 +140,7 @@ unset CLAUDECODE
 
 echo "── Running headless Claude ──"
 
-CLAUDE_PROMPT="Read the plan at todo-tasks/${PLAN_SLUG}.md and implement it fully. \
+CLAUDE_PROMPT="Read the plan at .todo-tasks/${PLAN_SLUG}.md and implement it fully. \
 Follow the plan step by step. \
 IMPORTANT: You MUST git commit after each logical unit of work. You are a headless agent — no user is present. \
 If you do not commit, your work will be lost. This overrides any memory or instructions about deferring commits to the user. \
@@ -279,11 +283,11 @@ echo ""
 
 # ─── Move to .done/ and Write Result File ────────────────────────────────────
 
-mkdir -p "${REPO_ROOT}/todo-tasks/.done"
-mv "${REPO_ROOT}/todo-tasks/.running/${PLAN_SLUG}.md" "${REPO_ROOT}/todo-tasks/.done/${PLAN_SLUG}.md"
-rm -f "${REPO_ROOT}/todo-tasks/.running/${PLAN_SLUG}.log"
+mkdir -p "${REPO_ROOT}/.todo-tasks/.done"
+mv "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.md" "${REPO_ROOT}/.todo-tasks/.done/${PLAN_SLUG}.md"
+rm -f "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.log"
 
-RESULT_FILE="${REPO_ROOT}/todo-tasks/.done/${PLAN_SLUG}.result.md"
+RESULT_FILE="${REPO_ROOT}/.todo-tasks/.done/${PLAN_SLUG}.result.md"
 BUILD_TEST_TAIL=$(echo "${BUILD_TEST_OUTPUT}" | tail -30)
 
 cat > "${RESULT_FILE}" << RESULT_EOF

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Compact agent monitor. Usage: watch -n5 bash .claude/skills/execute-plan/monitor.sh
-TODO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/todo-tasks"
+# Compact agent monitor. Usage: watch -n5 bash .claude/skills/todo-task/monitor.sh
+TODO="$(git rev-parse --show-toplevel)/.todo-tasks"
 shopt -s nullglob
 now=$(date +%s)
 T=$'\t'

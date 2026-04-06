@@ -9,14 +9,15 @@ set -uo pipefail
 #   --archive-success: move successful .done/ results to .archived/ after displaying
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-TODO="${REPO_ROOT}/todo-tasks"
+TODO="${REPO_ROOT}/.todo-tasks"
 ARCHIVE_SUCCESS_ONLY=false
 
 # Source project config for worktree prefix
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG="${SCRIPT_DIR}/task-config.sh"
-if [[ -f "$CONFIG" ]]; then
-  source "$CONFIG"
+if [[ -f "${REPO_ROOT}/.todo-tasks/task-config.sh" ]]; then
+  source "${REPO_ROOT}/.todo-tasks/task-config.sh"
+elif [[ -f "${SCRIPT_DIR}/task-config.sh" ]]; then
+  source "${SCRIPT_DIR}/task-config.sh"
 else
   WORKTREE_PREFIX="agent"
 fi
