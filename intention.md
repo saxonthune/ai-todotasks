@@ -2,14 +2,14 @@
 
 ## What this is
 
-A task lifecycle system for Claude Code. You write task ideas as markdown files, groom them into executable specs, then launch headless Claude agents to implement them in isolated git worktrees. The system tracks state by moving files through directories (pending → running → done → archived).
+A task lifecycle system for Claude Code. You write task ideas as markdown files, triage them into executable specs, then launch headless Claude agents to implement them in isolated git worktrees. The system tracks state by moving files through directories (pending → running → done → archived).
 
 It was extracted from [tinyForum](https://github.com/saxonthune/tinyForum) where it was developed and battle-tested.
 
 ## What it does
 
 - **Create**: quickly file a task idea as a markdown file
-- **Groom**: interactively refine a task into a spec that a headless agent can execute without asking questions — research the codebase, present a briefing, resolve design decisions with the user, then write the executable plan
+- **Triage**: interactively refine a task into a spec that a headless agent can execute without asking questions — research the codebase, present a briefing, resolve design decisions with the user, then write the executable plan
 - **Execute**: launch a headless Claude agent in a git worktree that implements the plan, verifies build/tests, retries on failure, and squash-merges on success
 - **Chain**: run multiple plans sequentially with resume support
 - **Status/Monitor**: comprehensive reporting and live dashboards
@@ -69,9 +69,9 @@ Once the resolution order is fixed, `task-config.sh` shouldn't ship in `skills/e
 
 ### 3. Remove the tinyForum-specific reference in SKILL.md
 
-The groom step references `.carta/MANIFEST.md` which is tinyForum-specific. This line should either be removed or made conditional (check if the file exists before referencing it).
+The triage step references `.carta/MANIFEST.md` which is tinyForum-specific. This line should either be removed or made conditional (check if the file exists before referencing it).
 
-**Edit**: In `skills/todo-task/SKILL.md`, Step 3 of the groom mode currently says:
+**Edit**: In `skills/todo-task/SKILL.md`, Step 3 of the triage mode currently says:
 > 1. **Check `.carta/MANIFEST.md`** — use the tag index to map task keywords to relevant docs.
 
 This was already removed in the extracted version. Verify it's gone.
@@ -97,13 +97,13 @@ Cover:
 - What this is and why it exists
 - Prerequisites (Claude Code CLI, git)
 - Installation via git subtree
-- Quick start (create → groom → execute → status)
+- Quick start (create → triage → execute → status)
 - Configuration (task-config.sh options)
 - Contributing fixes back upstream
 
 ### 8. Test with a fresh project
 
-Install into a blank repo and run the full lifecycle (create, groom, execute, status, archive) to verify everything works end-to-end without tinyForum-specific assumptions.
+Install into a blank repo and run the full lifecycle (create, triage, execute, status, archive) to verify everything works end-to-end without tinyForum-specific assumptions.
 
 ## Design decisions
 

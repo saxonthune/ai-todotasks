@@ -366,5 +366,5 @@ fi
 echo "Next steps:"
 echo "  1. Edit .todo-tasks/task-config.sh with your project's build/test commands"
 echo "  2. Create a task:  /todo-task create <description>"
-echo "  3. Groom it:       /todo-task groom <slug>"
+echo "  3. Triage it:      /todo-task triage <slug>"
 echo "  4. Execute it:     /todo-task execute <slug>"

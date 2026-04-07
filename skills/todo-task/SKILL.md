@@ -1,6 +1,6 @@
 ---
 name: todo-task
-description: "Task lifecycle manager: create ideas, groom into specs, execute via headless agents, check status, monitor agents. Usage: /todo-task [create|groom|execute|status|monitor] [args]"
+description: "Task lifecycle manager: create ideas, triage into specs, execute via headless agents, check status, monitor agents. Usage: /todo-task [create|triage|execute|status|monitor] [args]"
 ---
 
 # todo-task
@@ -13,7 +13,7 @@ Route based on `$ARGUMENTS[0]`:
 |---------|---------|
 | `/todo-task` | Show status (same as `status`) |
 | `/todo-task create {description}` | File a new task |
-| `/todo-task groom {slug}` | Refine a pending task into an executable spec |
+| `/todo-task triage {slug}` | Refine a pending task into an executable spec |
 | `/todo-task execute {slug}` | Launch headless agent to implement a plan |
 | `/todo-task status` | Full lifecycle report |
 | `/todo-task monitor` | Live dashboard (watch loop) |
@@ -50,7 +50,7 @@ AskUserQuestion({
     header: "Failed agent",
     options: [
       { label: "Fix it now (Recommended)", description: "Investigate the failure and fix the code in the existing worktree" },
-      { label: "Re-groom and retry", description: "Refine the plan to avoid the failure, then re-launch" },
+      { label: "Re-triage and retry", description: "Refine the plan to avoid the failure, then re-launch" },
       { label: "Archive and skip", description: "Move to archived, don't retry" }
     ],
     multiSelect: false
@@ -90,7 +90,7 @@ Write to `.todo-tasks/{slug}.md`:
 ## Scope
 
 - {Bullet list of what's in scope}
-- {Be specific enough that a groomer can act on it}
+- {Be specific enough that a triage step can act on it}
 
 ## Out of Scope
 
@@ -98,12 +98,12 @@ Write to `.todo-tasks/{slug}.md`:
 
 ## Notes
 
-- {Optional. Context that would help the groomer: related files, prior attempts, links to related tasks.}
+- {Optional. Context that would help the triage step: related files, prior attempts, links to related tasks.}
 ```
 
 ### Step 3: Confirm
 
-Tell the user the file was created and they can groom it with `/todo-task groom {slug}`.
+Tell the user the file was created and they can triage it with `/todo-task triage {slug}`.
 
 ### Guidelines
 
@@ -120,7 +120,7 @@ If the task belongs to an existing epic (`{epic}.epic.md` in `.todo-tasks/`), pr
 
 ---
 
-## Mode: `groom`
+## Mode: `triage`
 
 Refine a pending task from a rough idea into an executable spec that a headless agent can implement without asking questions. **This is interactive** — present findings, ask questions, get alignment before writing the spec.
 
@@ -138,7 +138,7 @@ Present tasks to the user with `AskUserQuestion`:
 ```typescript
 AskUserQuestion({
   questions: [{
-    question: "Which task should we groom?",
+    question: "Which task should we triage?",
     header: "Task",
     options: [
       // one per task, label = title, description = first line of motivation
@@ -254,12 +254,12 @@ After the user has answered all questions and confirmed the approach, rewrite `.
 
 ### Step 7: Confirm and hand off
 
-Tell the user the task has been groomed with a brief summary of the plan, then offer to launch:
+Tell the user the task has been triaged with a brief summary of the plan, then offer to launch:
 
 ```typescript
 AskUserQuestion({
   questions: [{
-    question: "Plan is groomed and ready. Launch background execution?",
+    question: "Plan is triaged and ready. Launch background execution?",
     header: "Execute",
     options: [
       { label: "Launch now (Recommended)", description: "Run execute-plan in background, merge on success" },
@@ -273,20 +273,20 @@ AskUserQuestion({
 
 If the user says launch, switch to execute mode for that slug.
 
-### Grooming Guidelines
+### Triaging Guidelines
 
 - **This is interactive.** Do not skip the briefing and rush to writing the spec. The conversation in Step 4 is where you and the user align on approach.
 - **Name every file.** The agent shouldn't have to search for where to make changes.
 - **Be specific about what, not how.** "Add a `getUserById` function to `users.ts` that queries by primary key" — not pseudocode.
 - **Write negative constraints early.** "Do NOT" goes near the top of the spec — headless agents may not read the full document with equal attention. Ask yourself: "What's the easiest wrong implementation?" and block that path.
 - **Include verification.** The agent needs to know when it's done.
-- **Keep it atomic.** If grooming reveals the task is too large, split it into multiple tasks and tell the user.
+- **Keep it atomic.** If triaging reveals the task is too large, split it into multiple tasks and tell the user.
 
 ---
 
 ## Mode: `execute`
 
-Launch a headless agent to implement a groomed plan.
+Launch a headless agent to implement a triaged plan.
 
 **Input**: `$ARGUMENTS[1]` is the task slug. If empty, list pending tasks and ask. Supports `--no-merge` and `--chain`.
 
@@ -357,7 +357,7 @@ bash .claude/skills/todo-task/monitor.sh
 The todo-task system is a directory-as-state-machine. Files move through directories to represent lifecycle state.
 
 ```
-.todo-tasks/              <- PENDING  (create creates, groom refines)
+.todo-tasks/              <- PENDING  (create creates, triage refines)
     |
 .todo-tasks/.running/     <- EXECUTING (execute-plan moves files here)
     |
@@ -370,7 +370,7 @@ The todo-task system is a directory-as-state-machine. Files move through directo
 
 | Pattern | Purpose | Created by |
 |---------|---------|------------|
-| `*.md` | Task plans | `create` / `groom` |
+| `*.md` | Task plans | `create` / `triage` |
 | `*.epic.md` | Epic overview (not executable) | manual |
 | `*.result.md` | Execution results | `execute` |
 | `chain-*.manifest` | Chain progress tracker | `execute --chain` |
@@ -401,7 +401,7 @@ If you skip these steps, future sessions will see stale worktrees and unresolved
 ## Rules
 
 - `create` only writes to `.todo-tasks/`
-- `groom` only modifies existing files in `.todo-tasks/`
+- `triage` only modifies existing files in `.todo-tasks/`
 - `execute` moves files through the lifecycle via shell scripts
 - Never manually move files to `.running/`, `.done/`, or `.archived/`
 - Never write `.result.md` files (agents create those)
