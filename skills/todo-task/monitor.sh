@@ -34,29 +34,10 @@ elapsed() {
   else echo "$((age/86400))d$((age%86400/3600))h"; fi
 }
 
-# Pad/truncate a string to exactly N chars
-pad() {
-  local s="$1" n="$2"
-  printf "%-${n}s" "${s:0:$n}"
-}
-
-# Right-align a string in N chars
-rpad() {
-  local s="$1" n="$2"
-  printf "%${n}s" "$s"
-}
-
 # ── Frame renderer ────────────────────────────────────────────────────────────
 render_frame() {
   local now; now=$(date +%s)
   local T=$'\t'
-
-  # Terminal width (default 80 if not a tty)
-  local cols=80
-  if [[ -t 1 ]]; then cols=$(tput cols 2>/dev/null || echo 80); fi
-  # Inner width = cols - 2 (for box sides)
-  local inner=$(( cols - 2 ))
-  (( inner < 20 )) && inner=20
 
   # ── Collect active (running) entries ─────────────────────────────────────
   local -a active_lines=()
@@ -163,16 +144,21 @@ render_frame() {
     done
     local etotal=0 edone=0 erunning=0 efailed=0
     for ets in "${!seen_slugs[@]}"; do
-      ((etotal++))
+      etotal=$((etotal + 1))
       if [[ -f "$TODO/.done/${ets}.result.md" ]]; then
         local es; es=$(sed -n 's/^[*]*[Ss]tatus[*]*: *//p' "$TODO/.done/${ets}.result.md" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]')
-        case "$es" in *success*) ((edone++)) ;; *) ((efailed++)) ;; esac
-      elif ls "$TODO/.archived/"*"-${ets}.result.md" &>/dev/null 2>&1; then
-        local erf; erf=$(ls "$TODO/.archived/"*"-${ets}.result.md" 2>/dev/null | head -1)
-        local efs; efs=$(sed -n 's/^[*]*[Ss]tatus[*]*: *//p' "$erf" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]')
-        case "$efs" in *success*) ((edone++)) ;; *) ((efailed++)) ;; esac
-      elif [[ -f "$TODO/.running/${ets}.md" ]]; then
-        ((erunning++))
+        case "$es" in *success*) edone=$((edone + 1)) ;; *) efailed=$((efailed + 1)) ;; esac
+      else
+        local erf=""
+        for _af in "$TODO/.archived/"*"-${ets}.result.md"; do
+          [[ -f "$_af" ]] && erf="$_af" && break
+        done
+        if [[ -n "$erf" ]]; then
+          local efs; efs=$(sed -n 's/^[*]*[Ss]tatus[*]*: *//p' "$erf" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]')
+          case "$efs" in *success*) edone=$((edone + 1)) ;; *) efailed=$((efailed + 1)) ;; esac
+        elif [[ -f "$TODO/.running/${ets}.md" ]]; then
+          erunning=$((erunning + 1))
+        fi
       fi
     done
     unset seen_slugs
@@ -192,72 +178,30 @@ render_frame() {
   done
   local n_pending=${#pending_lines[@]}
 
-  # ── Box drawing ───────────────────────────────────────────────────────────
-  local title=" todo-tasks "
-  local hline; hline=$(printf '─%.0s' $(seq 1 $((inner - 2))))
-  local top="┌─${title}${hline:${#title}}┐"
-  # Trim/pad top to exact width
-  local border_line; border_line=$(printf '─%.0s' $(seq 1 $((inner))))
-  local bottom="└${border_line}┘"
+  # ── Output ─────────────────────────────────────────────────────────────────
+  # EL = erase to end of line — prevents previous frame's longer lines bleeding through
+  local EL=$'\033[K'
 
-  # Helper: print a box row with content, padded to inner width
-  box_row() {
-    local content="$1"
-    # Strip ANSI to measure visible length
-    local visible; visible=$(echo "$content" | sed 's/\x1b\[[0-9;]*m//g')
-    local vlen=${#visible}
-    local pad_n=$(( inner - vlen - 1 ))
-    (( pad_n < 0 )) && pad_n=0
-    printf '│ %s%*s│\n' "$content" "$pad_n" ""
-  }
-
-  box_empty() {
-    printf '│%*s│\n' "$inner" ""
-  }
-
-  # Print top border (adjust width)
-  local tlen=${#top}
-  local target=$(( cols ))
-  if (( tlen < target )); then
-    # Extend the hline
-    local extra_dashes; extra_dashes=$(printf '─%.0s' $(seq 1 $((target - tlen - 1))))
-    top="${top%┐}${extra_dashes}┐"
-  fi
-  printf '%s\n' "$top"
-  box_empty
+  printf '\n  %stodo-tasks%s%s\n%s\n' "$BOLD" "$RESET" "$EL" "$EL"
 
   # Running entries
   if (( ${#active_lines[@]} > 0 )); then
     for entry in "${active_lines[@]}"; do
-      local etype eslug eextra eelapsed
+      local etype eslug eelapsed
       etype=$(echo "$entry" | cut -f1)
       eslug=$(echo "$entry" | cut -f2)
       eelapsed=$(echo "$entry" | cut -f3)
 
-      local icon color
+      local color
       case "$etype" in
-        chain)      icon="${YELLOW}●${RESET}"; color="$YELLOW" ;;
-        chain-fail) icon="${RED}✗${RESET}";    color="$RED" ;;
-        running)    icon="${YELLOW}●${RESET}"; color="$YELLOW" ;;
-        *)          icon="?"; color="" ;;
+        chain|running)  color="$YELLOW" ;;
+        chain-fail)     color="$RED" ;;
+        *)              color="" ;;
       esac
 
-      local label_raw="${eslug}"
-      local status_word="${color}running${RESET}"
-      local elapsed_str="$eelapsed"
-
-      # Compute visible lengths for alignment
-      local lv=${#label_raw}
-      local sv=7  # "running" visible length
-      local ev=${#elapsed_str}
-      # Available space: inner - 2 (icon+space) - 2 (spaces around status) - ev - 2 (right margin) - 1 (space after icon)
-      local label_max=$(( inner - 2 - sv - ev - 6 ))
-      (( label_max < 8 )) && label_max=8
-      local label_disp; label_disp=$(pad "$label_raw" "$label_max")
-
-      box_row "${icon} ${BOLD}${label_disp}${RESET}  ${status_word}  ${elapsed_str}"
+      printf '  %srunning%s  %s  %s%s\n' "$color" "$RESET" "$eslug" "$eelapsed" "$EL"
     done
-    box_empty
+    printf '%s\n' "$EL"
   fi
 
   # Recent completions
@@ -268,54 +212,40 @@ render_frame() {
       rslug2=$(echo "$entry" | cut -f2)
       rag=$(echo "$entry" | cut -f3)
 
-      local icon color status_word
+      local color status_word
       case "$rtype" in
-        done)   icon="${GREEN}✓${RESET}"; color="$GREEN";  status_word="${color}success${RESET}" ;;
-        failed) icon="${RED}✗${RESET}";  color="$RED";    status_word="${color}failed${RESET}" ;;
-        *)      icon="?"; color=""; status_word="$rtype" ;;
+        done)   color="$GREEN";  status_word="success" ;;
+        failed) color="$RED";    status_word="failed" ;;
+        *)      color=""; status_word="$rtype" ;;
       esac
 
-      local sv_len=7  # "success" or "failed " visible length (pad to 7)
-      local rag_len=${#rag}
-      local label_max=$(( inner - 2 - sv_len - rag_len - 6 ))
-      (( label_max < 8 )) && label_max=8
-      local label_disp; label_disp=$(pad "$rslug2" "$label_max")
-
-      box_row "${icon} ${DIM}${label_disp}${RESET}  ${status_word}  ${rag}"
+      printf '  %s%-7s%s  %s  %s%s\n' "$color" "$status_word" "$RESET" "$rslug2" "$rag" "$EL"
     done
-    box_empty
+    printf '%s\n' "$EL"
   fi
 
   # Pending tasks
   if (( ${#pending_lines[@]} > 0 )); then
     for pslug in "${pending_lines[@]}"; do
-      local label_max=$(( inner - 4 ))
-      local label_disp; label_disp=$(pad "$pslug" "$label_max")
-      box_row "${DIM}⏳ ${label_disp}${RESET}"
+      printf '  %spending%s  %s%s\n' "$DIM" "$RESET" "$pslug" "$EL"
     done
-    box_empty
+    printf '%s\n' "$EL"
   fi
 
   # Epics section
   if (( ${#epic_lines[@]} > 0 )); then
-    local epic_header="${DIM}── epics ──${RESET}"
-    box_row "$epic_header"
+    printf '  %sepics%s%s\n' "$DIM" "$RESET" "$EL"
     for eline in "${epic_lines[@]}"; do
       local ename; ename=$(echo "$eline" | cut -f1)
       local esumm; esumm=$(echo "$eline" | cut -f2)
-      local name_max=$(( inner / 2 - 2 ))
-      local name_disp; name_disp=$(pad "$ename" "$name_max")
-      box_row "  ${CYAN}${name_disp}${RESET}  ${esumm}"
+      printf '  %s%s%s  %s%s\n' "$CYAN" "$ename" "$RESET" "$esumm" "$EL"
     done
-    box_empty
+    printf '%s\n' "$EL"
   fi
 
   # Summary line
-  local summary="${n_running} running · ${n_done} done · ${n_failed} failed · ${n_pending} pending"
-  box_row "${DIM}${summary}${RESET}"
-  box_empty
-
-  printf '%s\n' "$bottom"
+  printf '  %s%s running  %s done  %s failed  %s pending%s%s\n' \
+    "$DIM" "$n_running" "$n_done" "$n_failed" "$n_pending" "$RESET" "$EL"
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -341,9 +271,11 @@ cleanup() {
 }
 trap cleanup INT TERM
 
+tput clear 2>/dev/null || printf '\033[H\033[2J'
 while true; do
-  tput clear 2>/dev/null || printf '\033[H\033[2J'
+  tput cup 0 0 2>/dev/null || printf '\033[H'
   render_frame
-  printf '\n  %srefreshing every 5s · ctrl-c to exit%s\n' "$DIM" "$RESET"
+  printf '\n  %srefreshing every 5s · ctrl-c to exit%s' "$DIM" "$RESET"
+  tput ed 2>/dev/null || printf '\033[J'
   sleep 5
 done

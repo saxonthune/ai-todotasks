@@ -263,14 +263,32 @@ for rel in "${SKILL_FILES[@]}"; do
     continue
   fi
 
-  if [[ -f "$dst" ]] && ! $FORCE; then
-    SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
-  else
+  if [[ ! -f "$dst" ]]; then
     cp "$src" "$dst"
-    if [[ "$filename" == *.sh ]]; then
-      chmod +x "$dst"
-    fi
+    if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
     INSTALLED_FILES+=(".claude/skills/todo-task/${filename}")
+  elif $FORCE; then
+    cp "$src" "$dst"
+    if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
+    INSTALLED_FILES+=(".claude/skills/todo-task/${filename}")
+  elif diff -q "$src" "$dst" >/dev/null 2>&1; then
+    # Identical — skip silently
+    SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+  elif [[ -t 0 ]]; then
+    echo "--- .claude/skills/todo-task/${filename}"
+    diff -u "$dst" "$src" | head -20 || true
+    echo ""
+    read -r -p "Update .claude/skills/todo-task/${filename}? [y/N] " answer </dev/tty
+    if [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+      cp "$src" "$dst"
+      if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
+      UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+    else
+      SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+    fi
+  else
+    # Non-interactive — can't prompt, skip
+    SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
   fi
 done
 
@@ -320,6 +338,14 @@ if [[ ${#INSTALLED_FILES[@]} -gt 0 ]]; then
   echo ""
 fi
 
+if [[ ${#UPDATED_FILES[@]} -gt 0 ]]; then
+  echo "Updated:"
+  for f in "${UPDATED_FILES[@]}"; do
+    echo "  $f"
+  done
+  echo ""
+fi
+
 if [[ ${#SCAFFOLDED_FILES[@]} -gt 0 ]]; then
   echo "Scaffolded:"
   for f in "${SCAFFOLDED_FILES[@]}"; do
@@ -329,11 +355,11 @@ if [[ ${#SCAFFOLDED_FILES[@]} -gt 0 ]]; then
 fi
 
 if [[ ${#SKIPPED_FILES[@]} -gt 0 ]]; then
-  echo "Skipped (already exist):"
+  echo "Skipped (unchanged or declined):"
   for f in "${SKIPPED_FILES[@]}"; do
     echo "  $f"
   done
-  echo "  (pass --force to overwrite, or --update for interactive mode)"
+  echo "  (pass --force to overwrite all)"
   echo ""
 fi
 

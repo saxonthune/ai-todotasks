@@ -108,6 +108,7 @@ if [[ ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "${CHAIN_MANIFESTS[0]}" ]]; then
     completed=$(parse_result "$manifest" "completed")
     cstatus=$(parse_result "$manifest" "status")
     failed=$(parse_result "$manifest" "failed_phase")
+    chain_branch=$(parse_result "$manifest" "chain_branch")
 
     total=$(echo "$phases" | tr ',' '\n' | grep -c '.' || echo "0")
     done_count=0
@@ -117,11 +118,23 @@ if [[ ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "${CHAIN_MANIFESTS[0]}" ]]; then
 
     if [[ "$cstatus" == "complete" ]]; then
       echo "| **${chain}** | COMPLETE | ${total}/${total} | — | ${phases} |"
+    elif [[ "$cstatus" == "merging" ]]; then
+      echo "| **${chain}** | MERGING | ${done_count}/${total} | merging to trunk | ${phases} |"
     elif [[ "$cstatus" == "failed" ]]; then
       echo "| **${chain}** | FAILED | ${done_count}/${total} | ${failed} | ${phases} |"
       HAS_FAILURES=true
     else
       echo "| **${chain}** | RUNNING | ${done_count}/${total} | ${current} | ${phases} |"
+    fi
+
+    # Show chain branch info if available
+    if [[ -n "$chain_branch" && "$chain_branch" != "none" ]]; then
+      chain_worktree=$(parse_result "$manifest" "chain_worktree")
+      if [[ -d "$chain_worktree" ]]; then
+        local_commits=$(cd "$chain_worktree" 2>/dev/null && git log --oneline "$(git merge-base HEAD "${chain_branch}" 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null | wc -l || echo "?")
+        echo ""
+        echo "  Chain worktree: \`${chain_worktree}\` (branch: \`${chain_branch}\`)"
+      fi
     fi
 
     CHAIN_CLAIMED="${CHAIN_CLAIMED},${phases},"
@@ -179,6 +192,20 @@ while IFS= read -r wt_line; do
   wt_dir=$(basename "$wt_path")
   if [[ "$wt_dir" == ${WORKTREE_PREFIX}-* ]]; then
     slug="${wt_dir#${WORKTREE_PREFIX}-}"
+
+    # Skip chain worktrees that are actively managed
+    if [[ "$slug" == chain-* ]]; then
+      chain_name="${slug#chain-}"
+      if [[ -f "${TODO}/.running/chain-${chain_name}.manifest" ]]; then
+        manifest_status=$(parse_result "${TODO}/.running/chain-${chain_name}.manifest" "status")
+        if [[ "$manifest_status" == "running" || "$manifest_status" == "merging" ]]; then
+          continue  # active chain, not stale
+        fi
+      fi
+      STALE_WTS+=("${slug} (chain worktree)")
+      continue
+    fi
+
     if [[ -f "${TODO}/.done/${slug}.result.md" ]] || ls "${TODO}/.archived/"*"-${slug}.result.md" 2>/dev/null | grep -q .; then
       status="done"
       if [[ -f "${TODO}/.done/${slug}.result.md" ]]; then
@@ -315,7 +342,7 @@ if [[ "$ARCHIVE_SUCCESS_ONLY" == "true" && "$HAS_DONE" == "true" ]]; then
       [[ -f "${TODO}/.done/${slug}.md" ]] && mv "${TODO}/.done/${slug}.md" "${TODO}/.archived/${ts}-${slug}.md"
       mv "$result" "${TODO}/.archived/${ts}-${slug}.result.md"
       echo "- Archived ${slug}"
-      ((archived++))
+      archived=$((archived + 1))
     else
       echo "- Skipped ${slug} (${status})"
     fi

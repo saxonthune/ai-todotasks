@@ -4,27 +4,37 @@ set -euo pipefail
 # ─── Plan Executor Orchestrator ───────────────────────────────────────────────
 # Creates a worktree, runs headless Claude to implement a plan, verifies, merges.
 #
-# Usage: execute-plan.sh <plan-name> [--no-merge]
+# Usage: execute-plan.sh <plan-name> [options]
 #   plan-name: filename (without .md) in .todo-tasks/
 #   --no-merge: leave branch ready for manual merge instead of auto-merging
+#   --trunk-dir <path>: merge back into this directory instead of repo root
+#   --trunk-branch <name>: branch name to treat as trunk (for worktree-based chains)
+#   --no-guard: skip the dirty-tree check (caller guarantees a clean trunk)
 
 # ─── Parse Arguments ──────────────────────────────────────────────────────────
 
 PLAN_SLUG=""
 NO_MERGE=false
 VALIDATE_ONLY=false
+TRUNK_DIR=""
+TRUNK_BRANCH=""
+NO_GUARD=false
 
-for arg in "$@"; do
-  case "$arg" in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --no-merge) NO_MERGE=true ;;
     --validate-only) VALIDATE_ONLY=true ;;
-    -*) echo "Unknown option: $arg"; exit 1 ;;
-    *) PLAN_SLUG="$arg" ;;
+    --no-guard) NO_GUARD=true ;;
+    --trunk-dir) TRUNK_DIR="$2"; shift ;;
+    --trunk-branch) TRUNK_BRANCH="$2"; shift ;;
+    -*) echo "Unknown option: $1"; exit 1 ;;
+    *) PLAN_SLUG="$1" ;;
   esac
+  shift
 done
 
 if [[ -z "$PLAN_SLUG" ]]; then
-  echo "Usage: execute-plan.sh <plan-name> [--no-merge]"
+  echo "Usage: execute-plan.sh <plan-name> [--no-merge] [--trunk-dir <path>] [--trunk-branch <name>] [--no-guard]"
   echo ""
   echo "Available plans:"
   ls .todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|.todo-tasks/||;s|\.md$||' | sed 's/^/  /'
@@ -43,7 +53,20 @@ else
   source "${SCRIPT_DIR}/task-config.sh"
 fi
 
-TRUNK="$(git branch --show-current)"
+# Use caller-specified trunk or detect from current branch
+if [[ -n "$TRUNK_BRANCH" ]]; then
+  TRUNK="$TRUNK_BRANCH"
+else
+  TRUNK="$(git branch --show-current)"
+fi
+
+# Use caller-specified trunk directory or default to repo root
+if [[ -n "$TRUNK_DIR" ]]; then
+  MERGE_DIR="$(cd "$TRUNK_DIR" && pwd)"
+else
+  MERGE_DIR="$REPO_ROOT"
+fi
+
 BRANCH="${TRUNK}_claude_${PLAN_SLUG}"
 WORKTREE_DIR="${REPO_ROOT}/../${WORKTREE_PREFIX}-${PLAN_SLUG}"
 
@@ -65,16 +88,18 @@ if [[ "$TRUNK" == *_claude* ]]; then
   exit 1
 fi
 
-# Guard: refuse to launch if working tree is dirty
-if ! git diff --quiet || ! git diff --cached --quiet || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
-  echo "ERROR: Working tree has uncommitted changes."
-  echo ""
-  echo "The agent runs in a worktree branched from HEAD. Any uncommitted"
-  echo "changes won't be in the worktree and will likely cause merge"
-  echo "conflicts when the agent's branch merges back."
-  echo ""
-  echo "Commit or stash your changes first, then re-launch."
-  exit 1
+# Guard: refuse to launch if working tree is dirty (unless caller says skip)
+if [[ "$NO_GUARD" == "false" ]]; then
+  if ! git -C "$MERGE_DIR" diff --quiet || ! git -C "$MERGE_DIR" diff --cached --quiet || [[ -n "$(git -C "$MERGE_DIR" ls-files --others --exclude-standard)" ]]; then
+    echo "ERROR: Working tree has uncommitted changes."
+    echo ""
+    echo "The agent runs in a worktree branched from HEAD. Any uncommitted"
+    echo "changes won't be in the worktree and will likely cause merge"
+    echo "conflicts when the agent's branch merges back."
+    echo ""
+    echo "Commit or stash your changes first, then re-launch."
+    exit 1
+  fi
 fi
 
 # Validation passed — exit early if that's all we were asked to do
@@ -252,7 +277,7 @@ COMMITS=$(cd "${WORKTREE_DIR}" && git log "${TRUNK}..HEAD" --oneline 2>/dev/null
 if [[ "$VERIFIED" == "true" ]]; then
   if [[ "$NO_MERGE" == "false" ]]; then
     echo "── Merging into trunk ──"
-    cd "${REPO_ROOT}"
+    cd "${MERGE_DIR}"
 
     if git merge --squash "${BRANCH}" && git commit -m "feat: ${PLAN_SLUG} (agent)"; then
       MERGE_STATUS="success"
