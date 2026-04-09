@@ -36,7 +36,7 @@ If `$ARGUMENTS` includes `--archive`, run with `--archive-success` flag.
 
 After showing status, handle completed agents:
 
-**Successful agents:** Archive automatically:
+**Successful agents:** Archive automatically. Also archives completed or resolved chains (worktrees, branches, manifests, and logs):
 ```bash
 bash .claude/skills/todo-task/status.sh --archive-success
 ```

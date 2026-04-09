@@ -352,3 +352,70 @@ if [[ "$ARCHIVE_SUCCESS_ONLY" == "true" && "$HAS_DONE" == "true" ]]; then
   fi
   echo ""
 fi
+
+# ─── Archive Stale Chains ────────────────────────────────────────────────────
+
+if [[ "$ARCHIVE_SUCCESS_ONLY" == "true" && ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "${CHAIN_MANIFESTS[0]:-}" ]]; then
+  mkdir -p "${TODO}/.archived"
+  ts=$(date +%Y%m%d)
+  chain_archived=0
+  for manifest in "${CHAIN_MANIFESTS[@]}"; do
+    chain=$(parse_result "$manifest" "chain")
+    cstatus=$(parse_result "$manifest" "status")
+
+    # Skip active chains
+    if [[ "$cstatus" == "running" || "$cstatus" == "merging" ]]; then
+      continue
+    fi
+
+    should_archive=false
+
+    if [[ "$cstatus" == "complete" ]]; then
+      should_archive=true
+    elif [[ "$cstatus" == "failed" ]]; then
+      chain_branch=$(parse_result "$manifest" "chain_branch")
+      if [[ -z "$chain_branch" || "$chain_branch" == "none" ]]; then
+        should_archive=true
+      elif ! git rev-parse --verify "refs/heads/${chain_branch}" &>/dev/null; then
+        # Branch doesn't exist — already merged/deleted
+        should_archive=true
+      elif git merge-base --is-ancestor "${chain_branch}" HEAD 2>/dev/null; then
+        # Branch was merged into current branch
+        should_archive=true
+      fi
+      # Otherwise: branch exists and is not merged — skip, needs attention
+    fi
+
+    if [[ "$should_archive" == "true" ]]; then
+      # Print header before first chain archive
+      if [[ $chain_archived -eq 0 ]]; then
+        echo ""
+        echo "## Archiving Stale Chains"
+        echo ""
+      fi
+
+      chain_worktree=$(parse_result "$manifest" "chain_worktree")
+      chain_branch=$(parse_result "$manifest" "chain_branch")
+
+      if [[ -n "$chain_worktree" && "$chain_worktree" != "none" && -d "$chain_worktree" ]]; then
+        git worktree remove --force "$chain_worktree" 2>/dev/null || true
+      fi
+      if [[ -n "$chain_branch" && "$chain_branch" != "none" ]] && git rev-parse --verify "refs/heads/${chain_branch}" &>/dev/null; then
+        git branch -D "$chain_branch" 2>/dev/null || true
+      fi
+
+      mv "$manifest" "${TODO}/.archived/${ts}-chain-${chain}.manifest"
+
+      local_log="${TODO}/.running/chain-${chain}.log"
+      if [[ -f "$local_log" ]]; then
+        mv "$local_log" "${TODO}/.archived/${ts}-chain-${chain}.log"
+      fi
+
+      echo "- Archived chain ${chain}"
+      chain_archived=$((chain_archived + 1))
+    fi
+  done
+  if [[ $chain_archived -gt 0 ]]; then
+    echo ""
+  fi
+fi
