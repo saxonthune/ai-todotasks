@@ -97,7 +97,9 @@ if [[ "$NO_GUARD" == "false" ]]; then
     echo "changes won't be in the worktree and will likely cause merge"
     echo "conflicts when the agent's branch merges back."
     echo ""
-    echo "Commit or stash your changes first, then re-launch."
+    echo "Commit your current changes before re-launching."
+    echo "If the user prefers manual git operations, prompt them"
+    echo "to commit or stash their changes, then re-launch."
     exit 1
   fi
 fi
@@ -187,8 +189,10 @@ CLAUDE_OUTPUT=$(claude -p \
   "${CLAUDE_PROMPT}" 2>&1) || true
 
 # Extract session ID for potential retry
-SESSION_ID=$(echo "${CLAUDE_OUTPUT}" | jq -r '.session_id // empty' 2>/dev/null || echo "")
-CLAUDE_RESULT=$(echo "${CLAUDE_OUTPUT}" | jq -r '.result // empty' 2>/dev/null || echo "${CLAUDE_OUTPUT}")
+JQ_ALT='.session_id // empty'
+SESSION_ID=$(echo "${CLAUDE_OUTPUT}" | jq -r "$JQ_ALT" 2>/dev/null || echo "")
+JQ_ALT='.result // empty'
+CLAUDE_RESULT=$(echo "${CLAUDE_OUTPUT}" | jq -r "$JQ_ALT" 2>/dev/null || echo "${CLAUDE_OUTPUT}")
 
 echo "Claude session complete"
 if [[ -n "$SESSION_ID" ]]; then

@@ -22,6 +22,8 @@ Route based on `$ARGUMENTS[0]`:
 
 ## Mode: `status` (default when no arguments)
 
+**IMPORTANT: ALWAYS run the status script FIRST. Do NOT read files, investigate errors, check git state, or do any other research before running this script. Show the script output to the user, then follow the triage flow below. Only investigate issues after the full triage flow is complete and the user asks you to.**
+
 Run the status script and display results:
 
 ```bash

@@ -125,8 +125,8 @@ if $UPDATE; then
     echo ""
 
     if [[ -n "$AVAILABLE_VER" ]] && [[ "$INSTALLED_VER" == "$AVAILABLE_VER" ]]; then
-      echo "Already up to date."
-      exit 0
+      echo "Versions match. Checking for file changes..."
+      echo ""
     fi
   else
     echo "No version found (pre-versioning install). Showing all changes."
@@ -167,6 +167,7 @@ if $UPDATE; then
   # Step C: Per-file prompts
   # Detect if stdin is a terminal
   INTERACTIVE_STDIN=true
+  YES_ALL=false
   if [[ ! -t 0 ]]; then
     INTERACTIVE_STDIN=false
     echo "Non-interactive stdin detected. Skipping existing files."
@@ -197,18 +198,33 @@ if $UPDATE; then
     else
       # Differs — show diff and prompt
       if $INTERACTIVE_STDIN; then
-        echo "--- .claude/skills/todo-task/${filename}"
-        diff -u "$dst" "$src" | head -20 || true
-        echo ""
-        read -r -p "Update .claude/skills/todo-task/${filename}? [y/N] " answer </dev/tty
-        if [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+        if $YES_ALL; then
           cp "$src" "$dst"
           if [[ "$filename" == *.sh ]]; then
             chmod +x "$dst"
           fi
           UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
         else
-          SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+          echo "--- .claude/skills/todo-task/${filename}"
+          diff -u "$dst" "$src" | head -20 || true
+          echo ""
+          read -r -p "Update .claude/skills/todo-task/${filename}? [y/N/a=yes to all] " answer </dev/tty
+          if [[ "$answer" == "a" ]] || [[ "$answer" == "A" ]]; then
+            YES_ALL=true
+            cp "$src" "$dst"
+            if [[ "$filename" == *.sh ]]; then
+              chmod +x "$dst"
+            fi
+            UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+          elif [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+            cp "$src" "$dst"
+            if [[ "$filename" == *.sh ]]; then
+              chmod +x "$dst"
+            fi
+            UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+          else
+            SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+          fi
         fi
       else
         SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
@@ -253,6 +269,7 @@ fi
 
 # ─── Copy skill files (fresh install or --force) ──────────────────────────────
 
+YES_ALL=false
 for rel in "${SKILL_FILES[@]}"; do
   src="${SOURCE_DIR}/${rel}"
   filename="$(basename "$rel")"
@@ -275,16 +292,27 @@ for rel in "${SKILL_FILES[@]}"; do
     # Identical — skip silently
     SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
   elif [[ -t 0 ]]; then
-    echo "--- .claude/skills/todo-task/${filename}"
-    diff -u "$dst" "$src" | head -20 || true
-    echo ""
-    read -r -p "Update .claude/skills/todo-task/${filename}? [y/N] " answer </dev/tty
-    if [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+    if $YES_ALL; then
       cp "$src" "$dst"
       if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
       UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
     else
-      SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+      echo "--- .claude/skills/todo-task/${filename}"
+      diff -u "$dst" "$src" | head -20 || true
+      echo ""
+      read -r -p "Update .claude/skills/todo-task/${filename}? [y/N/a=yes to all] " answer </dev/tty
+      if [[ "$answer" == "a" ]] || [[ "$answer" == "A" ]]; then
+        YES_ALL=true
+        cp "$src" "$dst"
+        if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
+        UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+      elif [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+        cp "$src" "$dst"
+        if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
+        UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+      else
+        SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+      fi
     fi
   else
     # Non-interactive — can't prompt, skip
