@@ -12,15 +12,9 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 TODO="${REPO_ROOT}/.todo-tasks"
 ARCHIVE_SUCCESS_ONLY=false
 
-# Source project config for worktree prefix
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "${REPO_ROOT}/.todo-tasks/task-config.sh" ]]; then
-  source "${REPO_ROOT}/.todo-tasks/task-config.sh"
-elif [[ -f "${SCRIPT_DIR}/task-config.sh" ]]; then
-  source "${SCRIPT_DIR}/task-config.sh"
-else
-  WORKTREE_PREFIX="agent"
-fi
+source "${SCRIPT_DIR}/lib.sh"
+source_task_config
 
 for arg in "$@"; do
   case "$arg" in
@@ -28,17 +22,6 @@ for arg in "$@"; do
     *) echo "Unknown option: $arg"; exit 1 ;;
   esac
 done
-
-# ─── Helper: parse result file ──────────────────────────────────────────────
-parse_result() {
-  local file="$1" key="$2"
-  local val=""
-  val=$(grep -m1 -i "^${key}:" "$file" 2>/dev/null | sed "s/^[^:]*: *//" || true)
-  if [[ -z "$val" ]]; then
-    val=$(grep -m1 -i "^\*\*${key}\*\*:" "$file" 2>/dev/null | sed "s/^[^:]*: *//" || true)
-  fi
-  echo "${val,,}"
-}
 
 # ─── Completed Agents ───────────────────────────────────────────────────────
 
@@ -48,43 +31,103 @@ while IFS= read -r f; do
 done < <(ls "${TODO}/.done/"*.result.md 2>/dev/null || true)
 
 HAS_DONE=false
-HAS_FAILURES=false
+HAS_ATTENTION=false
 
-if [[ ${#DONE_RESULTS[@]} -gt 0 && -n "${DONE_RESULTS[0]}" ]]; then
+declare -a BUCKET_SUCCESS=()
+declare -a BUCKET_READY=()
+declare -a BUCKET_QUESTIONABLE=()
+declare -a BUCKET_ATTENTION=()
+
+for result in "${DONE_RESULTS[@]}"; do
+  [[ -z "$result" ]] && continue
   HAS_DONE=true
-  echo "## Completed Agents"
+  slug=$(basename "$result" .result.md)
+
+  # Try new format
+  session=$(parse_result_field "$result" "session")
+  if [[ -n "$session" ]]; then
+    verification=$(parse_result_field "$result" "verification")
+    merge=$(parse_result_field "$result" "merge")
+    commits=$(parse_result_field "$result" "commits")
+    overall=$(derive_overall_state "$session" "$verification" "$merge")
+    bucket=$(state_bucket "$overall")
+  else
+    # Old format fallback
+    old_status=$(parse_result_field "$result" "status")
+    old_merge=$(parse_result_field "$result" "merge")
+    commits=$(parse_result_field "$result" "commits")
+    if [[ "$old_status" == "success" && "$old_merge" == "success" ]]; then
+      overall="$SM_OVERALL_SUCCESS"; bucket="$SM_BUCKET_SUCCESS"
+    elif [[ "$old_status" == "success" && "$old_merge" == "conflict" ]]; then
+      overall="$SM_OVERALL_CONFLICT"; bucket="$SM_BUCKET_ATTENTION"
+    elif [[ "$old_status" == "success" ]]; then
+      overall="$SM_OVERALL_SUCCESS"; bucket="$SM_BUCKET_SUCCESS"
+    else
+      overall="$SM_OVERALL_BUILD_FAIL"; bucket="$SM_BUCKET_ATTENTION"
+    fi
+  fi
+
+  retried=$(parse_result_field "$result" "retried")
+  error=$(parse_result_field "$result" "error")
+  notes=""
+  [[ -n "$retried" && "$retried" != "false" && "$retried" != "0" ]] && notes="Retried. "
+
+  wt_path="${REPO_ROOT}/../${WORKTREE_PREFIX}-${slug}"
+  [[ -d "$wt_path" ]] && notes="${notes}[worktree exists] "
+
+  # Add error context for non-success buckets
+  if [[ "$bucket" != "$SM_BUCKET_SUCCESS" ]]; then
+    if [[ -n "$error" ]]; then
+      notes="${notes}${error}"
+    elif [[ "$overall" == "$SM_OVERALL_NOOP" ]]; then
+      notes="${notes}Agent produced 0 commits."
+    elif [[ "$overall" == "$SM_OVERALL_DIRTY" ]]; then
+      notes="${notes}Conflict markers in committed files!"
+    elif [[ "$overall" == "$SM_OVERALL_CONFLICT" ]]; then
+      notes="${notes}Merge conflict. Branch left intact."
+    elif [[ "$overall" == "$SM_OVERALL_SESSION_FAIL" ]]; then
+      notes="${notes}Session crashed. Check result file."
+    else
+      notes="${notes}Check result file."
+    fi
+  fi
+  [[ -z "$notes" ]] && notes="Clean run."
+
+  # Build the row: slug|overall|commits|notes
+  ROW="${slug}|${overall}|${commits:-0}|${notes}"
+
+  case "$bucket" in
+    "$SM_BUCKET_SUCCESS")     BUCKET_SUCCESS+=("$ROW") ;;
+    "$SM_BUCKET_READY")       BUCKET_READY+=("$ROW") ;;
+    "$SM_BUCKET_QUESTIONABLE") BUCKET_QUESTIONABLE+=("$ROW") ;;
+    "$SM_BUCKET_ATTENTION")   BUCKET_ATTENTION+=("$ROW") ;;
+  esac
+done
+
+[[ ${#BUCKET_ATTENTION[@]} -gt 0 || ${#BUCKET_QUESTIONABLE[@]} -gt 0 ]] && HAS_ATTENTION=true
+
+render_bucket() {
+  local title="$1"
+  local -n rows="$2"
+  [[ ${#rows[@]} -eq 0 ]] && return
+  echo "### ${title}"
   echo ""
-  echo "| Agent | Status | Merge | Commits | Notes |"
-  echo "|-------|--------|-------|---------|-------|"
-  for result in "${DONE_RESULTS[@]}"; do
-    slug=$(basename "$result" .result.md)
-    status=$(parse_result "$result" "status")
-    merge=$(parse_result "$result" "merge")
-    commits=$(parse_result "$result" "commits")
-    retried=$(parse_result "$result" "retried")
-    error=$(parse_result "$result" "error")
-
-    notes=""
-    if [[ -n "$retried" && "$retried" != "false" && "$retried" != "0" ]]; then
-      notes="Retried. "
-    fi
-    if [[ "$status" != "success" ]]; then
-      HAS_FAILURES=true
-      if [[ -n "$error" ]]; then
-        notes="${notes}${error}"
-      else
-        notes="${notes}Check result file."
-      fi
-    fi
-
-    wt_path="${REPO_ROOT}/../${WORKTREE_PREFIX}-${slug}"
-    if [[ -d "$wt_path" ]]; then
-      notes="${notes} [worktree exists]"
-    fi
-
-    echo "| **${slug}** | ${status} | ${merge} | ${commits:-0} | ${notes:-Clean run.} |"
+  echo "| Agent | State | Commits | Notes |"
+  echo "|-------|-------|---------|-------|"
+  for row in "${rows[@]}"; do
+    IFS='|' read -r slug overall commits notes <<< "$row"
+    echo "| **${slug}** | ${overall} | ${commits} | ${notes} |"
   done
   echo ""
+}
+
+if [[ "$HAS_DONE" == "true" ]]; then
+  echo "## Completed Agents"
+  echo ""
+  render_bucket "Needs Attention" BUCKET_ATTENTION
+  render_bucket "Questionable" BUCKET_QUESTIONABLE
+  render_bucket "Ready for Review" BUCKET_READY
+  render_bucket "Success" BUCKET_SUCCESS
 fi
 
 # ─── Chains ─────────────────────────────────────────────────────────────────
@@ -102,13 +145,13 @@ if [[ ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "${CHAIN_MANIFESTS[0]}" ]]; then
   echo "| Chain | Status | Progress | Current/Failed | Phases |"
   echo "|-------|--------|----------|----------------|--------|"
   for manifest in "${CHAIN_MANIFESTS[@]}"; do
-    chain=$(parse_result "$manifest" "chain")
-    phases=$(parse_result "$manifest" "phases")
-    current=$(parse_result "$manifest" "current")
-    completed=$(parse_result "$manifest" "completed")
-    cstatus=$(parse_result "$manifest" "status")
-    failed=$(parse_result "$manifest" "failed_phase")
-    chain_branch=$(parse_result "$manifest" "chain_branch")
+    chain=$(parse_result_field "$manifest" "chain")
+    phases=$(parse_result_field "$manifest" "phases")
+    current=$(parse_result_field "$manifest" "current")
+    completed=$(parse_result_field "$manifest" "completed")
+    cstatus=$(parse_result_field "$manifest" "status")
+    failed=$(parse_result_field "$manifest" "failed_phase")
+    chain_branch=$(parse_result_field "$manifest" "chain_branch")
 
     total=$(echo "$phases" | tr ',' '\n' | grep -c '.' || echo "0")
     done_count=0
@@ -122,14 +165,14 @@ if [[ ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "${CHAIN_MANIFESTS[0]}" ]]; then
       echo "| **${chain}** | MERGING | ${done_count}/${total} | merging to trunk | ${phases} |"
     elif [[ "$cstatus" == "failed" ]]; then
       echo "| **${chain}** | FAILED | ${done_count}/${total} | ${failed} | ${phases} |"
-      HAS_FAILURES=true
+      HAS_ATTENTION=true
     else
       echo "| **${chain}** | RUNNING | ${done_count}/${total} | ${current} | ${phases} |"
     fi
 
     # Show chain branch info if available
     if [[ -n "$chain_branch" && "$chain_branch" != "none" ]]; then
-      chain_worktree=$(parse_result "$manifest" "chain_worktree")
+      chain_worktree=$(parse_result_field "$manifest" "chain_worktree")
       if [[ -d "$chain_worktree" ]]; then
         local_commits=$(cd "$chain_worktree" 2>/dev/null && git log --oneline "$(git merge-base HEAD "${chain_branch}" 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null | wc -l || echo "?")
         echo ""
@@ -142,9 +185,9 @@ if [[ ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "${CHAIN_MANIFESTS[0]}" ]]; then
   echo ""
 
   for manifest in "${CHAIN_MANIFESTS[@]}"; do
-    cstatus=$(parse_result "$manifest" "status")
+    cstatus=$(parse_result_field "$manifest" "status")
     if [[ "$cstatus" == "running" ]]; then
-      chain=$(parse_result "$manifest" "chain")
+      chain=$(parse_result_field "$manifest" "chain")
       log="${TODO}/.running/chain-${chain}.log"
       if [[ -f "$log" ]]; then
         echo "### Chain log: ${chain} (last 10 lines)"
@@ -197,7 +240,7 @@ while IFS= read -r wt_line; do
     if [[ "$slug" == chain-* ]]; then
       chain_name="${slug#chain-}"
       if [[ -f "${TODO}/.running/chain-${chain_name}.manifest" ]]; then
-        manifest_status=$(parse_result "${TODO}/.running/chain-${chain_name}.manifest" "status")
+        manifest_status=$(parse_result_field "${TODO}/.running/chain-${chain_name}.manifest" "status")
         if [[ "$manifest_status" == "running" || "$manifest_status" == "merging" ]]; then
           continue  # active chain, not stale
         fi
@@ -209,7 +252,15 @@ while IFS= read -r wt_line; do
     if [[ -f "${TODO}/.done/${slug}.result.md" ]] || ls "${TODO}/.archived/"*"-${slug}.result.md" 2>/dev/null | grep -q .; then
       status="done"
       if [[ -f "${TODO}/.done/${slug}.result.md" ]]; then
-        status=$(parse_result "${TODO}/.done/${slug}.result.md" "status")
+        stale_result_file="${TODO}/.done/${slug}.result.md"
+        stale_session=$(parse_result_field "$stale_result_file" "session")
+        if [[ -n "$stale_session" ]]; then
+          stale_verify=$(parse_result_field "$stale_result_file" "verification")
+          stale_merge=$(parse_result_field "$stale_result_file" "merge")
+          status=$(derive_overall_state "$stale_session" "$stale_verify" "$stale_merge")
+        else
+          status=$(parse_result_field "$stale_result_file" "status")
+        fi
       fi
       STALE_WTS+=("${slug} (${status})")
     elif [[ ! -f "${TODO}/.running/${slug}.md" ]]; then
@@ -252,11 +303,25 @@ if [[ ${#EPIC_FILES[@]} -gt 0 && -n "${EPIC_FILES[0]}" ]]; then
       task_title=$(head -1 "$task_file" | sed 's/^#* //')
 
       if [[ -f "${TODO}/.done/${task_slug}.result.md" ]]; then
-        result_status=$(parse_result "${TODO}/.done/${task_slug}.result.md" "status")
-        if [[ "$result_status" == "success" ]]; then
-          echo "| ${task_slug} | DONE | ${task_title} |"
+        epic_result_file="${TODO}/.done/${task_slug}.result.md"
+        epic_result_session=$(parse_result_field "$epic_result_file" "session")
+        if [[ -n "$epic_result_session" ]]; then
+          epic_result_verify=$(parse_result_field "$epic_result_file" "verification")
+          epic_result_merge=$(parse_result_field "$epic_result_file" "merge")
+          epic_overall=$(derive_overall_state "$epic_result_session" "$epic_result_verify" "$epic_result_merge")
+          epic_bucket=$(state_bucket "$epic_overall")
+          if [[ "$epic_bucket" == "$SM_BUCKET_SUCCESS" || "$epic_bucket" == "$SM_BUCKET_READY" ]]; then
+            echo "| ${task_slug} | DONE | ${task_title} |"
+          else
+            echo "| ${task_slug} | FAILED | ${task_title} |"
+          fi
         else
-          echo "| ${task_slug} | FAILED | ${task_title} |"
+          result_status=$(parse_result_field "$epic_result_file" "status")
+          if [[ "$result_status" == "success" ]]; then
+            echo "| ${task_slug} | DONE | ${task_title} |"
+          else
+            echo "| ${task_slug} | FAILED | ${task_title} |"
+          fi
         fi
       elif [[ -f "${TODO}/.running/${task_slug}.md" ]]; then
         echo "| ${task_slug} | RUNNING | ${task_title} |"
@@ -270,11 +335,24 @@ if [[ ${#EPIC_FILES[@]} -gt 0 && -n "${EPIC_FILES[0]}" ]]; then
       archived_base=$(basename "$archived_result" .result.md)
       task_slug="${archived_base#[0-9]*-}"
       [[ -f "${TODO}/.done/${task_slug}.result.md" ]] && continue
-      result_status=$(parse_result "$archived_result" "status")
-      if [[ "$result_status" == "success" ]]; then
-        echo "| ${task_slug} | ARCHIVED | Done |"
+      arch_session=$(parse_result_field "$archived_result" "session")
+      if [[ -n "$arch_session" ]]; then
+        arch_verify=$(parse_result_field "$archived_result" "verification")
+        arch_merge=$(parse_result_field "$archived_result" "merge")
+        arch_overall=$(derive_overall_state "$arch_session" "$arch_verify" "$arch_merge")
+        arch_bucket=$(state_bucket "$arch_overall")
+        if [[ "$arch_bucket" == "$SM_BUCKET_SUCCESS" || "$arch_bucket" == "$SM_BUCKET_READY" ]]; then
+          echo "| ${task_slug} | ARCHIVED | Done |"
+        else
+          echo "| ${task_slug} | ARCHIVED (failed) | Needs review |"
+        fi
       else
-        echo "| ${task_slug} | ARCHIVED (failed) | Needs review |"
+        result_status=$(parse_result_field "$archived_result" "status")
+        if [[ "$result_status" == "success" ]]; then
+          echo "| ${task_slug} | ARCHIVED | Done |"
+        else
+          echo "| ${task_slug} | ARCHIVED (failed) | Needs review |"
+        fi
       fi
     done
 
@@ -307,8 +385,6 @@ fi
 
 # ─── Summary Line ──────────────────────────────────────────────────────────
 
-done_n=${#DONE_RESULTS[@]}
-[[ -z "${DONE_RESULTS[0]:-}" ]] && done_n=0
 running_n=${#RUNNING_MDS[@]}
 [[ -z "${RUNNING_MDS[0]:-}" ]] && running_n=0
 pending_n=${#PENDING_MDS[@]}
@@ -320,10 +396,10 @@ epic_n=${#EPIC_FILES[@]}
 stale_n=${#STALE_WTS[@]}
 
 echo "---"
-echo "Summary: ${done_n} completed, ${running_n} running, ${chain_n} chains, ${pending_n} pending, ${epic_n} epics, ${stale_n} stale worktrees"
+echo "Summary: ${#BUCKET_SUCCESS[@]} success, ${#BUCKET_READY[@]} ready, ${#BUCKET_QUESTIONABLE[@]} questionable, ${#BUCKET_ATTENTION[@]} attention, ${running_n} running, ${chain_n} chains, ${pending_n} pending, ${epic_n} epics, ${stale_n} stale"
 
-if [[ "$HAS_FAILURES" == "true" ]]; then
-  echo "Failures detected — triage needed before proceeding."
+if [[ "$HAS_ATTENTION" == "true" ]]; then
+  echo "Attention needed — review completed agents above before proceeding."
 fi
 
 # ─── Archive ────────────────────────────────────────────────────────────────
@@ -337,14 +413,27 @@ if [[ "$ARCHIVE_SUCCESS_ONLY" == "true" && "$HAS_DONE" == "true" ]]; then
   archived=0
   for result in "${DONE_RESULTS[@]}"; do
     slug=$(basename "$result" .result.md)
-    status=$(parse_result "$result" "status")
-    if [[ "$status" == "success" ]]; then
+    # Determine success using new or old format
+    archive_session=$(parse_result_field "$result" "session")
+    archive_is_success=false
+    if [[ -n "$archive_session" ]]; then
+      archive_verification=$(parse_result_field "$result" "verification")
+      archive_merge=$(parse_result_field "$result" "merge")
+      archive_overall=$(derive_overall_state "$archive_session" "$archive_verification" "$archive_merge")
+      [[ "$archive_overall" == "$SM_OVERALL_SUCCESS" ]] && archive_is_success=true
+    else
+      archive_status=$(parse_result_field "$result" "status")
+      old_archive_merge=$(parse_result_field "$result" "merge")
+      [[ "$archive_status" == "success" && "$old_archive_merge" == "success" ]] && archive_is_success=true
+    fi
+
+    if [[ "$archive_is_success" == "true" ]]; then
       [[ -f "${TODO}/.done/${slug}.md" ]] && mv "${TODO}/.done/${slug}.md" "${TODO}/.archived/${ts}-${slug}.md"
       mv "$result" "${TODO}/.archived/${ts}-${slug}.result.md"
       echo "- Archived ${slug}"
       archived=$((archived + 1))
     else
-      echo "- Skipped ${slug} (${status})"
+      echo "- Skipped ${slug} (not successful)"
     fi
   done
   if [[ $archived -eq 0 ]]; then
@@ -360,8 +449,8 @@ if [[ "$ARCHIVE_SUCCESS_ONLY" == "true" && ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "$
   ts=$(date +%Y%m%d)
   chain_archived=0
   for manifest in "${CHAIN_MANIFESTS[@]}"; do
-    chain=$(parse_result "$manifest" "chain")
-    cstatus=$(parse_result "$manifest" "status")
+    chain=$(parse_result_field "$manifest" "chain")
+    cstatus=$(parse_result_field "$manifest" "status")
 
     # Skip active chains
     if [[ "$cstatus" == "running" || "$cstatus" == "merging" ]]; then
@@ -373,7 +462,7 @@ if [[ "$ARCHIVE_SUCCESS_ONLY" == "true" && ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "$
     if [[ "$cstatus" == "complete" ]]; then
       should_archive=true
     elif [[ "$cstatus" == "failed" ]]; then
-      chain_branch=$(parse_result "$manifest" "chain_branch")
+      chain_branch=$(parse_result_field "$manifest" "chain_branch")
       if [[ -z "$chain_branch" || "$chain_branch" == "none" ]]; then
         should_archive=true
       elif ! git rev-parse --verify "refs/heads/${chain_branch}" &>/dev/null; then
@@ -394,8 +483,8 @@ if [[ "$ARCHIVE_SUCCESS_ONLY" == "true" && ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "$
         echo ""
       fi
 
-      chain_worktree=$(parse_result "$manifest" "chain_worktree")
-      chain_branch=$(parse_result "$manifest" "chain_branch")
+      chain_worktree=$(parse_result_field "$manifest" "chain_worktree")
+      chain_branch=$(parse_result_field "$manifest" "chain_branch")
 
       if [[ -n "$chain_worktree" && "$chain_worktree" != "none" && -d "$chain_worktree" ]]; then
         git worktree remove --force "$chain_worktree" 2>/dev/null || true

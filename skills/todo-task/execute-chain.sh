@@ -23,15 +23,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 TODO="${REPO_ROOT}/.todo-tasks"
 
-# Source project config for worktree prefix
-if [[ -f "${REPO_ROOT}/.todo-tasks/task-config.sh" ]]; then
-  source "${REPO_ROOT}/.todo-tasks/task-config.sh"
-elif [[ -f "${SCRIPT_DIR}/task-config.sh" ]]; then
-  source "${SCRIPT_DIR}/task-config.sh"
-else
-  WORKTREE_PREFIX="agent"
-  MAX_BUDGET="5.00"
-fi
+source "${SCRIPT_DIR}/lib.sh"
+source_task_config
 
 # ─── Parse Arguments ─────────────────────────────────────────────────────────
 
