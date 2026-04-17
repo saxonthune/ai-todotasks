@@ -304,19 +304,15 @@ Launch a headless agent to implement a triaged plan.
 
 2. **Confirm** — Show the plan summary and ask user to confirm.
 
-3. **Validate** — Run the script with `--validate-only` to check preconditions (clean tree, plan exists, correct branch, claude CLI available). Do NOT manually check git status or other prerequisites — the script handles all of that.
-   ```bash
-   bash .claude/skills/todo-task/execute-plan.sh {slug} --validate-only
-   ```
-   If validation fails, show the error and tell the user what to fix. Do NOT proceed to launch.
+3. **Launch** — Run `launch.sh`. It validates preconditions synchronously (plan exists, clean tree, correct branch) and only backgrounds the real run if validation passes. Do NOT manually run `execute-plan.sh --validate-only` or hand-roll `nohup` — `launch.sh` handles both.
 
-4. **Launch** — If validation passes, background the full run:
    ```bash
-   mkdir -p .todo-tasks/.running
-   nohup bash .claude/skills/todo-task/execute-plan.sh {slug} > .todo-tasks/.running/{slug}.log 2>&1 &
+   bash .claude/skills/todo-task/launch.sh {slug}
    ```
 
-5. **Report** — Tell the user:
+   If the command exits non-zero, validation failed — show the error to the user and tell them what to fix. Do NOT retry.
+
+4. **Report** — Tell the user:
    - Agent is running in the background
    - Check progress: `tail -f .todo-tasks/.running/{slug}.log`
    - Check results: `.todo-tasks/.done/{slug}.result.md`
@@ -326,14 +322,14 @@ Launch a headless agent to implement a triaged plan.
 
 - `--no-merge` — leave branch for manual review instead of auto-merging:
   ```bash
-  nohup bash .claude/skills/todo-task/execute-plan.sh {slug} --no-merge > .todo-tasks/.running/{slug}.log 2>&1 &
+  bash .claude/skills/todo-task/launch.sh {slug} --no-merge
   ```
 
 ### Chain execution
 
-If `--chain` is passed with multiple slugs, launch directly — the chain script handles its own precondition checks:
+If `--chain` is passed with multiple slugs, call `launch-chain.sh`:
 ```bash
-nohup bash .claude/skills/todo-task/launch-chain.sh {chain-name} {slug1} {slug2} ... > .todo-tasks/.running/chain-{chain-name}.log 2>&1 &
+bash .claude/skills/todo-task/launch-chain.sh {chain-name} {slug1} {slug2} ...
 ```
 
 ---
