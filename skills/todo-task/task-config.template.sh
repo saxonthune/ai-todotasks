@@ -6,16 +6,12 @@
 # Copy this file to your project:
 #   .todo-tasks/task-config.sh
 # Then edit the values below to match your project.
+#
+# Per-task verification commands live in each plan's ## Verification section
+# (a fenced bash block). This file is for project-wide operational settings only.
 
 # Prefix for agent worktree directories (created alongside the repo root)
 WORKTREE_PREFIX="agent"
-
-# Command to install dependencies in a fresh worktree
-INSTALL_CMD="npm install"
-
-# Command to verify the implementation (must exit 0 on success)
-BUILD_CMD="npm run build"
-TEST_CMD="npm test"
 
 # Budget caps for headless Claude sessions (USD)
 MAX_BUDGET="5.00"

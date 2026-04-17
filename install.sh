@@ -95,6 +95,7 @@ fi
 
 SKILL_FILES=(
   "skills/todo-task/SKILL.md"
+  "skills/todo-task/lib.sh"
   "skills/todo-task/execute-plan.sh"
   "skills/todo-task/launch.sh"
   "skills/todo-task/launch-chain.sh"
@@ -334,7 +335,7 @@ if [[ ! -f "$CONFIG_DST" ]]; then
   else
     echo "WARNING: task-config.template.sh not found, skipping task-config.sh"
   fi
-  SCAFFOLDED_FILES+=(".todo-tasks/task-config.sh (edit this with your build/test commands)")
+  SCAFFOLDED_FILES+=(".todo-tasks/task-config.sh (operational settings: budget, retries, worktree prefix)")
 fi
 
 # .gitignore — only create if missing
@@ -392,7 +393,7 @@ if [[ ${#SKIPPED_FILES[@]} -gt 0 ]]; then
 fi
 
 echo "Next steps:"
-echo "  1. Edit .todo-tasks/task-config.sh with your project's build/test commands"
+echo "  1. Review .todo-tasks/task-config.sh (budget, retries, worktree prefix)"
 echo "  2. Create a task:  /todo-task create <description>"
 echo "  3. Triage it:      /todo-task triage <slug>"
 echo "  4. Execute it:     /todo-task execute <slug>"

@@ -140,8 +140,7 @@ RESULT_EOF
 # source_task_config
 # Sources project-specific config, then sets defaults for any unset variables.
 # Reads: REPO_ROOT, SCRIPT_DIR (from caller scope)
-# Sets: WORKTREE_PREFIX, MAX_BUDGET, RETRY_BUDGET, MAX_RETRIES,
-#       INSTALL_CMD, BUILD_CMD, TEST_CMD
+# Sets: WORKTREE_PREFIX, MAX_BUDGET, RETRY_BUDGET, MAX_RETRIES
 source_task_config() {
   if [[ -f "${REPO_ROOT}/.todo-tasks/task-config.sh" ]]; then
     source "${REPO_ROOT}/.todo-tasks/task-config.sh"
@@ -152,9 +151,27 @@ source_task_config() {
   MAX_BUDGET="${MAX_BUDGET:-5.00}"
   RETRY_BUDGET="${RETRY_BUDGET:-3.00}"
   MAX_RETRIES="${MAX_RETRIES:-4}"
-  INSTALL_CMD="${INSTALL_CMD:-npm install}"
-  BUILD_CMD="${BUILD_CMD:-npm run build}"
-  TEST_CMD="${TEST_CMD:-npm test}"
+}
+
+# parse_verification_commands <plan-path>
+# Echoes the contents of the first fenced bash/sh block under a ## Verification
+# heading. Exits non-zero and prints to stderr if no block is found.
+parse_verification_commands() {
+  local plan_path="$1"
+  local result
+  result=$(awk '
+    BEGIN { in_section=0; in_fence=0 }
+    in_fence && /^```[[:space:]]*$/ { exit }
+    in_fence { print; next }
+    in_section && /^##[[:space:]]/ { exit }
+    in_section && (/^```bash[[:space:]]*$/ || /^```sh[[:space:]]*$/) { in_fence=1; next }
+    /^##[[:space:]]+Verification[[:space:]]*$/ { in_section=1; next }
+  ' "$plan_path")
+  if [[ -z "$result" ]]; then
+    echo "ERROR: plan has no fenced bash/sh block under ## Verification: ${plan_path}" >&2
+    return 1
+  fi
+  echo "$result"
 }
 
 # parse_result_field <file> <key>

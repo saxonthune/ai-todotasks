@@ -211,7 +211,7 @@ If the task is too large (10+ files, multiple independent features, needs mid-im
 
 After the user has answered all questions and confirmed the approach, rewrite `.todo-tasks/{slug}.md` in place with this structure:
 
-```markdown
+````markdown
 # {Title}
 
 ## Motivation
@@ -241,9 +241,9 @@ After the user has answered all questions and confirmed the approach, rewrite `.
 
 ## Verification
 
-- {How to verify the change works}
-- {Specific test commands to run}
-- {Edge cases to check}
+```bash
+{commands to verify the implementation}
+```
 
 ## Out of Scope
 
@@ -252,7 +252,9 @@ After the user has answered all questions and confirmed the approach, rewrite `.
 ## Notes
 
 - {Caveats, risks, things a reviewer should watch for}
-```
+````
+
+> The `## Verification` section MUST contain at least one fenced bash/sh code block. execute-plan.sh parses commands from that block to run as the verification gate.
 
 ### Step 7: Confirm and hand off
 
