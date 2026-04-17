@@ -190,6 +190,10 @@ phase_run_session() {
   # Unset CLAUDECODE to allow nested claude invocations from parent sessions
   unset CLAUDECODE
 
+  # Pin CWD to the worktree so the inner session's edits and commits land on
+  # the agent branch, not the trunk the script was invoked from.
+  cd "${WORKTREE_DIR}"
+
   echo "── Running headless Claude ──"
 
   CLAUDE_PROMPT="Read the plan at .todo-tasks/${PLAN_SLUG}.md and implement it fully. \
@@ -279,6 +283,8 @@ phase_verify() {
 phase_retry_if_needed() {
   RETRIED=false
   RETRY_COUNT=0
+
+  cd "${WORKTREE_DIR}"
 
   while [[ "$VERIFIED" == "false" && "$RETRY_COUNT" -lt "$MAX_RETRIES" ]]; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
