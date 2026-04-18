@@ -440,8 +440,6 @@ phase_merge() {
 # Moves files to .done/, writes result file, prints summary.
 phase_finalize() {
   mkdir -p "${REPO_ROOT}/.todo-tasks/.done"
-  mv "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.md" "${REPO_ROOT}/.todo-tasks/.done/${PLAN_SLUG}.md"
-  rm -f "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.log"
 
   RESULT_FILE="${REPO_ROOT}/.todo-tasks/.done/${PLAN_SLUG}.result.md"
   BUILD_TEST_TAIL=$(echo "${BUILD_TEST_OUTPUT}" | tail -30)
@@ -455,10 +453,15 @@ phase_finalize() {
   COMMITS_COUNT=$(echo "$COMMITS" | grep -c '.' 2>/dev/null || echo 0)
   [[ "$COMMITS" == "(none)" || -z "$COMMITS" ]] && COMMITS_COUNT=0
 
+  # Write result BEFORE moving the plan to .done/ — result file presence is the
+  # completion signal the emergency trap checks for.
   write_result_file "$RESULT_FILE" "$PLAN_SLUG" \
     "$SESSION_STATE" "$VERIFICATION_STATE" "$MERGE_STATUS" \
     "$COMMITS_COUNT" "${COMMITS:-(none)}" "$BRANCH" "$WORKTREE_DIR" "$RETRIED" \
     "${SESSION_ID:-}" "$CLAUDE_RESULT" "$BUILD_TEST_TAIL" "${SESSION_ERROR:-}"
+
+  mv "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.md" "${REPO_ROOT}/.todo-tasks/.done/${PLAN_SLUG}.md"
+  rm -f "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.log"
 
   echo "═══ Result written to ${RESULT_FILE} ═══"
   echo ""
