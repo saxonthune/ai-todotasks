@@ -38,6 +38,15 @@ if [[ -n "$AFTER" ]]; then
   fi
 fi
 
+# Fast-fail on preconditions before backgrounding.
+# Runs execute-chain.sh --validate-only synchronously; if it exits non-zero,
+# the error is printed to stderr and we bail without creating a log.
+if ! bash "${SCRIPT_DIR}/execute-chain.sh" "$@" --validate-only; then
+  echo ""
+  echo "Validation failed. Not launching."
+  exit 1
+fi
+
 mkdir -p "${TODO}/.running"
 LOG="${TODO}/.running/chain-${CHAIN_NAME}.log"
 

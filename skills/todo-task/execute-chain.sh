@@ -32,6 +32,7 @@ CHAIN_NAME=""
 PHASES=()
 AFTER=""
 AFTER_NEXT=false
+VALIDATE_ONLY=false
 
 for arg in "$@"; do
   if [[ "$AFTER_NEXT" == "true" ]]; then
@@ -41,6 +42,7 @@ for arg in "$@"; do
   fi
   case "$arg" in
     --after) AFTER_NEXT=true ;;
+    --validate-only) VALIDATE_ONLY=true ;;
     *)
       if [[ -z "$CHAIN_NAME" ]]; then
         CHAIN_NAME="$arg"
@@ -58,6 +60,13 @@ if [[ -z "$CHAIN_NAME" || ${#PHASES[@]} -lt 2 ]]; then
 fi
 
 REAL_TRUNK="$(git branch --show-current)"
+
+if [[ "$REAL_TRUNK" == *_claude* ]]; then
+  echo "ERROR: Must run from trunk branch (current: ${REAL_TRUNK})"
+  echo "Switch to a branch without '_claude' suffix first."
+  exit 1
+fi
+
 CHAIN_BRANCH="chain-${CHAIN_NAME}"
 CHAIN_WORKTREE="${REPO_ROOT}/../${WORKTREE_PREFIX}-chain-${CHAIN_NAME}"
 MANIFEST="${TODO}/.running/chain-${CHAIN_NAME}.manifest"
@@ -150,6 +159,11 @@ for i in "${!PHASES[@]}"; do
   echo "ERROR: Plan '${slug}' not found in .todo-tasks/, .running/, or .done/"
   exit 1
 done
+
+if [[ "$VALIDATE_ONLY" == "true" ]]; then
+  echo "Validation passed."
+  exit 0
+fi
 
 # ─── Create Chain Worktree ──────────────────────────────────────────────────
 
