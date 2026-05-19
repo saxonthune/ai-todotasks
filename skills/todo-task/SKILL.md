@@ -332,6 +332,13 @@ If `--chain` is passed with multiple slugs, call `launch-chain.sh`:
 bash .claude/skills/todo-task/launch-chain.sh {chain-name} {slug1} {slug2} ...
 ```
 
+To queue a chain to start after a running or pending standalone task completes and merges, pass `--after <predecessor-slug>`:
+```bash
+bash .claude/skills/todo-task/launch-chain.sh {chain-name} {slug1} {slug2} ... --after {predecessor-slug}
+```
+
+The predecessor must be a standalone task (not part of the chain). It merges to trunk independently; the chain waits for it to complete and merge successfully before cutting its worktree from the now-updated trunk. If the predecessor fails or does not produce a result, the chain aborts. The predecessor slug must exist in pending, running, or done at launch time.
+
 ---
 
 ## Mode: `monitor`

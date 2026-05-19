@@ -176,6 +176,9 @@ if [[ ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "${CHAIN_MANIFESTS[0]}" ]]; then
     elif [[ "$cstatus" == "failed" ]]; then
       echo "| **${chain}** | FAILED | ${done_count}/${total} | ${failed} | ${phases} |"
       HAS_ATTENTION=true
+    elif [[ "$cstatus" == "waiting" ]]; then
+      waiting_for=$(parse_result_field "$manifest" "waiting_for")
+      echo "| **${chain}** | WAITING | 0/${total} | after ${waiting_for} | ${phases} |"
     else
       echo "| **${chain}** | RUNNING | ${done_count}/${total} | ${current} | ${phases} |"
     fi
@@ -196,7 +199,7 @@ if [[ ${#CHAIN_MANIFESTS[@]} -gt 0 && -n "${CHAIN_MANIFESTS[0]}" ]]; then
 
   for manifest in "${CHAIN_MANIFESTS[@]}"; do
     cstatus=$(parse_result_field "$manifest" "status")
-    if [[ "$cstatus" == "running" ]]; then
+    if [[ "$cstatus" == "running" || "$cstatus" == "waiting" ]]; then
       chain=$(parse_result_field "$manifest" "chain")
       log="${TODO}/.running/chain-${chain}.log"
       if [[ -f "$log" ]]; then

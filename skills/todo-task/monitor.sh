@@ -124,8 +124,12 @@ collect_active() {
     e=$(elapsed "$m")
     case "$status" in
       done|complete) ;;  # shown in recent, not active
-      failed) printf 'chain-fail\t%s [%d/%d] %s\t%s\n' "$chain" "$done_n" "$total" "$current" "$e" ;;
-      *)      printf 'chain\t%s [%d/%d] %s\t%s\n' "$chain" "$((done_n+1))" "$total" "$current" "$e" ;;
+      failed)  printf 'chain-fail\t%s [%d/%d] %s\t%s\n' "$chain" "$done_n" "$total" "$current" "$e" ;;
+      waiting)
+        local wf; wf=$(parse_result_field "$m" waiting_for)
+        printf 'chain\t%s [0/%d] after %s\t%s\n' "$chain" "$total" "$wf" "$e"
+        ;;
+      *)       printf 'chain\t%s [%d/%d] %s\t%s\n' "$chain" "$((done_n+1))" "$total" "$current" "$e" ;;
     esac
   done
 
