@@ -69,9 +69,11 @@ for result in "${DONE_RESULTS[@]}"; do
   fi
 
   retried=$(parse_result_field "$result" "retried")
+  surface_dev=$(parse_result_field "$result" "surface deviations")
   error=$(parse_result_field "$result" "error")
   notes=""
   [[ -n "$retried" && "$retried" != "false" && "$retried" != "0" ]] && notes="Retried. "
+  [[ "$surface_dev" == "declared" ]] && notes="${notes}Surface deviations declared — re-triage downstream. "
 
   wt_path="${REPO_ROOT}/../${WORKTREE_PREFIX}-${slug}"
   [[ -d "$wt_path" ]] && notes="${notes}[worktree exists] "

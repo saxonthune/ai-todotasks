@@ -84,6 +84,7 @@ state_bucket() {
 # write_result_file <result_path> <slug> <session> <verification> <merge>
 #   <commits_count> <commits_log> <branch> <worktree> <retried>
 #   <session_id> <claude_result> <build_test_tail> [error_detail] [trunk]
+#   [surface_deviations]
 # Writes standardized result markdown. Validates inputs against vocabulary
 # before writing; prints a warning for unknown values but writes anyway.
 write_result_file() {
@@ -102,6 +103,7 @@ write_result_file() {
   local build_test_tail="${13}"
   local error_detail="${14:-}"
   local trunk="${15:-$SM_TRUNK_UNCHANGED}"
+  local surface_deviations="${16:-none}"
 
   # Validate vocabulary (warn but don't abort)
   local valid_sessions="$SM_SESSION_COMPLETED $SM_SESSION_FAILED"
@@ -134,6 +136,7 @@ write_result_file() {
 **Trunk**: ${trunk}
 **Commits**: ${commits_count}
 **Retried**: ${retried}
+**Surface Deviations**: ${surface_deviations}
 $(if [[ -n "$error_detail" ]]; then echo "**Error**: ${error_detail}"; fi)
 
 ## Commits

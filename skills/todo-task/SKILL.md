@@ -164,6 +164,8 @@ Investigate the codebase to understand what changes are needed:
 4. **Understand test patterns** — Find existing tests near the code you'll change. Note the test framework, assertion style, and what's already covered.
 5. **Check for gotchas** — Look for related code that might break, shared state, or implicit dependencies.
 
+**Chain/epic phases:** When triaging a spec that is part of a chain or epic and whose predecessor phases have not merged yet, do not research live code for the predecessor's output. Read the predecessor spec's `## Surface after this phase` block and triage against that declared Surface. The Surface stands in for code that does not exist yet. If a symbol or behavior is not in the Surface, treat it as not existing.
+
 ### Step 4: Briefing
 
 Present your findings to the user before writing anything. This is where alignment happens.
@@ -252,7 +254,19 @@ After the user has answered all questions and confirmed the approach, rewrite `.
 ## Notes
 
 - {Caveats, risks, things a reviewer should watch for}
+
+## Surface after this phase
+
+> Required for chain/epic phases. Omit for standalone one-off tasks.
+
+- {Symbols this phase promises to leave behind — exported functions, types,
+  files — stated precisely enough that a later phase can triage against them.}
+- {Behaviors / integration points the phase guarantees.}
+- {Negative space: what is deliberately unchanged and can still be relied on —
+  e.g. "Legacy X still exists and still works until Phase N".}
 ````
+
+The `## Surface after this phase` block is the contract that downstream phases triage against. Write it precisely: if a symbol is not listed, later phases will treat it as nonexistent.
 
 > The `## Verification` section MUST contain at least one fenced bash/sh code block. execute-plan.sh parses commands from that block to run as the verification gate.
 
@@ -285,6 +299,9 @@ If the user says launch, switch to execute mode for that slug.
 - **Write negative constraints early.** "Do NOT" goes near the top of the spec — headless agents may not read the full document with equal attention. Ask yourself: "What's the easiest wrong implementation?" and block that path.
 - **Include verification.** The agent needs to know when it's done.
 - **Keep it atomic.** If triaging reveals the task is too large, split it into multiple tasks and tell the user.
+- **Chain triage rule — Surface, not the code.** For chain/epic phases whose predecessors have not merged, triage against the predecessor's `## Surface after this phase` block, not live code. The Surface stands in for code that does not exist yet.
+- **Chain triage rule — not in Surface = doesn't exist.** If a symbol, file, or behavior is absent from the Surface, treat it as nonexistent. Do not assume it will be present.
+- **Chain triage rule — negative space is a contract.** Lines like "Legacy X still exists and still works until Phase N" are promises later phases can rely on.
 
 ---
 

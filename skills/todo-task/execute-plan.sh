@@ -52,6 +52,7 @@ source_task_config
 # Initialize trunk state early so emergency_finalize always has a value under set -u
 TRUNK_STATE="$SM_TRUNK_UNCHANGED"
 TRUNK_HEAD_BEFORE=""
+SURFACE_DEVIATIONS="none"
 
 # Use caller-specified trunk or detect from current branch
 if [[ -n "$TRUNK_BRANCH" ]]; then
@@ -87,7 +88,7 @@ emergency_finalize() {
     "$SM_SESSION_FAILED" "$SM_VERIFY_FAILED" "$SM_MERGE_NOT_ATTEMPTED" \
     0 "(none)" "${BRANCH:-unknown}" "${WORKTREE_DIR:-unknown}" false "" \
     "Script exited unexpectedly at phase: ${CURRENT_PHASE:-unknown}" "" \
-    "Emergency exit" "${TRUNK_STATE:-$SM_TRUNK_UNCHANGED}"
+    "Emergency exit" "${TRUNK_STATE:-$SM_TRUNK_UNCHANGED}" "none"
 
   mv "$plan_running" "${REPO_ROOT}/.todo-tasks/.done/${PLAN_SLUG}.md" 2>/dev/null || true
 }
@@ -210,6 +211,8 @@ If you do not commit, your work will be lost. This overrides any memory or instr
 IMPORTANT: You MUST NOT cd out of the current directory. Do NOT prefix shell commands with 'cd <path> &&'. \
 All file edits, git commits, and shell commands must run in the current working directory, which is your isolated worktree. \
 Committing anywhere else loses your work and corrupts the trunk branch. \
+If the plan contains a '## Surface after this phase' section, you MUST make the implementation match that declared Surface exactly. \
+The Surface is a contract that later phases of the chain depend on. If you cannot implement something the Surface declares, halt and explain why. \
 When done, run the commands in the plan's ## Verification section and fix any issues. \
 Then verify you made at least one commit (run 'git log --oneline -3'). \
 Output your implementation summary, then end with a '## Notes' section containing: \
@@ -217,7 +220,10 @@ Output your implementation summary, then end with a '## Notes' section containin
 - Caveats or known limitations in the implementation \
 - Things a reviewer should pay attention to \
 - Anything that surprised you or felt wrong \
-If there's nothing noteworthy, write '## Notes' followed by 'None.'"
+If there's nothing noteworthy, write '## Notes' followed by 'None.' \
+After '## Notes', you MUST also write a '## Surface Deviations' section listing any way the implementation diverged from the declared Surface \
+(a missing or renamed symbol, a changed signature, a behavior that differs). \
+If there were no deviations, or the plan had no Surface block, write '## Surface Deviations' followed by 'None.'"
 
   CLAUDE_OUTPUT=$(claude -p \
     --allowedTools "Read,Write,Edit,Glob,Grep,Bash" \
@@ -245,6 +251,20 @@ If there's nothing noteworthy, write '## Notes' followed by 'None.'"
   elif [[ -z "$CLAUDE_RESULT" && -z "$SESSION_ID" ]]; then
     SESSION_STATE="$SM_SESSION_FAILED"
     SESSION_ERROR="No result or session ID returned — possible crash or network failure"
+  fi
+
+  # Parse Surface Deviations from the agent's closing section.
+  # awk extracts lines after "## Surface Deviations" up to the next "## " heading or EOF.
+  local dev_body
+  dev_body=$(echo "$CLAUDE_RESULT" | awk '
+    /^## Surface Deviations[[:space:]]*$/ { in_section=1; next }
+    in_section && /^## / { exit }
+    in_section { print }
+  ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' || true)
+  if [[ -z "$dev_body" || "$dev_body" == "None." || "$dev_body" == "None" ]]; then
+    SURFACE_DEVIATIONS="none"
+  else
+    SURFACE_DEVIATIONS="declared"
   fi
 
   echo "Claude session complete"
@@ -446,7 +466,7 @@ phase_finalize() {
     "$SESSION_STATE" "$VERIFICATION_STATE" "$MERGE_STATUS" \
     "$COMMITS_COUNT" "${COMMITS:-(none)}" "$BRANCH" "$WORKTREE_DIR" "$RETRIED" \
     "${SESSION_ID:-}" "$CLAUDE_RESULT" "$BUILD_TEST_TAIL" "${SESSION_ERROR:-}" \
-    "$TRUNK_STATE"
+    "$TRUNK_STATE" "${SURFACE_DEVIATIONS:-none}"
 
   mv "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.md" "${REPO_ROOT}/.todo-tasks/.done/${PLAN_SLUG}.md"
   rm -f "${REPO_ROOT}/.todo-tasks/.running/${PLAN_SLUG}.log"
