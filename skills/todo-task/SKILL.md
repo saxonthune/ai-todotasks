@@ -32,20 +32,22 @@ Run the status script and display results:
 bash .claude/skills/todo-task/status.sh
 ```
 
-If `$ARGUMENTS` includes `--archive`, run with `--archive-success` flag.
+If `$ARGUMENTS` includes `--archive`, pass `--archive` through (status delegates to `archive.sh`).
 
 ### Triage completed agents
 
 After showing status, handle completed agents:
 
-**Successful agents:** Archive automatically. Also archives completed or resolved chains (worktrees, branches, manifests, and logs):
+**Successful agents & completed chains:** Archive automatically. `archive.sh` (no args) `git rm`s every auto-eligible outcome (clean successes, completed chains) and removes their worktrees/branches:
 ```bash
-bash .claude/skills/todo-task/status.sh --archive-success
+bash .claude/skills/todo-task/archive.sh
 ```
 
-**Conflict agents (success but merge failed):** Check if the branch was already merged manually. If `git log` shows the agent's commits on the current branch, the conflict was already resolved — clean up the worktree, delete the branch, and archive. If not, treat as a failed merge and ask the user.
+**Conflict agents (`merge_conflict` / `merged_with_markers`):** NOT auto-archived — the worktree is kept for resolution. Check if the branch was already merged manually. If `git log` shows the agent's commits on the current branch, the conflict was already resolved — then `archive.sh {slug}` cleans up. If not, treat as a failed merge and ask the user.
 
-**Failed agents:** Do NOT archive. Ask the user what to do:
+**Ready-for-review agents (`--no-merge`):** NOT archived — they await a human merge of the agent branch.
+
+**Failed agents (`build_failure`/`session_failed`/`no_op`/`trunk_leak`, crashed, failed chains):** Do NOT archive by default. `archive.sh --force-failed` archives them explicitly once reviewed. First, ask the user what to do:
 
 ```typescript
 AskUserQuestion({
@@ -76,9 +78,9 @@ Format: `{slug}.md` — kebab-case, descriptive.
 
 Examples: `fix-login-timeout.md`, `add-user-search.md`, `stale-cache-after-deploy.md`
 
-### Step 2: Write the task file
+### Step 2: Write the draft
 
-Write to `.todo-tasks/{slug}.md`:
+Write to `.todo-tasks/inbox/{slug}.md`. The inbox is **gitignored** — a filed idea is not yet work, so it never touches git. Do NOT commit. (Triage later promotes it to a tracked `tasks/{slug}.md`.)
 
 ```markdown
 # {Title}
@@ -116,11 +118,11 @@ Tell the user the file was created and they can triage it with `/todo-task triag
 - **Reference files.** If you know which files are involved, list them.
 - **One task per file.** Three bugs = three tasks.
 - **Don't over-specify the solution.** Describe the problem and desired outcome.
-- **Check for duplicates.** Scan `.todo-tasks/` first.
+- **Check for duplicates.** Scan `.todo-tasks/inbox/` and `.todo-tasks/tasks/` first.
 
 ### Epic Tasks
 
-If the task belongs to an existing epic (`{epic}.epic.md` in `.todo-tasks/`), prefix: `{epic}-{nn}-{slug}.md`
+Epic membership is an **explicit slug list**, not a filename prefix. If the task belongs to an existing epic (`.todo-tasks/epics/{epic}.md`), write the task as a normal `tasks/{slug}.md`, then add its slug to that epic's `members:` line (comma-separated). The slug is the stable id — references never break.
 
 ---
 
@@ -132,9 +134,9 @@ Refine a pending task from a rough idea into an executable spec that a headless 
 
 ### Step 1: List or select
 
-If no slug provided:
+If no slug provided, list untriaged drafts (the inbox):
 ```bash
-bash .claude/skills/todo-task/list-pending.sh
+bash .claude/skills/todo-task/list-drafts.sh
 ```
 
 Present tasks to the user with `AskUserQuestion`:
@@ -154,7 +156,7 @@ AskUserQuestion({
 
 ### Step 2: Read the task
 
-Read `.todo-tasks/{slug}.md`. Understand the motivation and scope. If it belongs to an epic (`{epic}-` prefix), also read `{epic}.epic.md` for context.
+Read the draft at `.todo-tasks/inbox/{slug}.md` (or `.todo-tasks/tasks/{slug}.md` if you're re-triaging an already-promoted spec). Understand the motivation and scope. If the slug appears in any `.todo-tasks/epics/{epic}.md` `members:` list, also read that epic file for context.
 
 ### Step 3: Research the codebase
 
@@ -213,7 +215,7 @@ If the task is too large (10+ files, multiple independent features, needs mid-im
 
 ### Step 6: Rewrite as executable spec
 
-After the user has answered all questions and confirmed the approach, rewrite `.todo-tasks/{slug}.md` in place with this structure:
+After the user has answered all questions and confirmed the approach, **promote the draft**: write the executable spec to `.todo-tasks/tasks/{slug}.md` and delete the `.todo-tasks/inbox/{slug}.md` draft. Do NOT commit — the spec stays uncommitted (it doesn't block launching, and the orchestrator commits it automatically when you execute). Use this structure:
 
 ````markdown
 # {Title}
@@ -334,7 +336,7 @@ Launch a headless agent to implement a triaged plan.
 4. **Report** — Tell the user:
    - Agent is running in the background
    - Check progress: `tail -f .todo-tasks/.running/{slug}.log`
-   - Check results: `.todo-tasks/.done/{slug}.result.md`
+   - Check results: `.todo-tasks/results/{slug}.agent.md` (+ `.merge.md` after merge)
    - Check status: `/todo-task status`
 
 ### Options
@@ -378,57 +380,73 @@ bash .claude/skills/todo-task/monitor.sh
 
 ---
 
-## Task Lifecycle
+## Task Lifecycle (derive, don't store)
 
-The todo-task system is a directory-as-state-machine. Files move through directories to represent lifecycle state.
+There is no directory-as-state-machine. Lifecycle is **derived from which files exist**,
+not from moving files between directories. The directories below are stable *categories*,
+never lifecycle states.
 
 ```
-.todo-tasks/              <- PENDING  (create creates, triage refines)
-    |
-.todo-tasks/.running/     <- EXECUTING (execute-plan moves files here)
-    |
-.todo-tasks/.done/        <- FINISHED  (agent writes .result.md here)
-    |
-.todo-tasks/.archived/    <- REVIEWED  (archived after triage)
+.todo-tasks/
+  inbox/{slug}.md            IGNORED   untriaged draft — written by create, local-only
+  tasks/{slug}.md            TRACKED   spec — promoted by triage; committed by the orchestrator at launch
+  results/{slug}.agent.md    TRACKED   worktree-owned outcome — carried to trunk by the merge
+  results/{slug}.merge.md    TRACKED   trunk-owned outcome — written on trunk after the merge
+  chains/{chain}.md          TRACKED   chain definition — written on trunk at completion
+  epics/{epic}.md            TRACKED   epic definition with `members: a,b,c`
+  task-config.sh             TRACKED   build/test commands
+  .running/{slug}.run        IGNORED   run-record — liveness (pid) + worktree location
+  .archived/                 IGNORED   physical copies after `git rm`
+  *.log .version             IGNORED
 ```
 
-### File Types
+Phase is computed by the reporter from file presence:
 
-| Pattern | Purpose | Created by |
-|---------|---------|------------|
-| `*.md` | Task plans | `create` / `triage` |
-| `*.epic.md` | Epic overview (not executable) | manual |
-| `*.result.md` | Execution results | `execute` |
-| `chain-*.manifest` | Chain progress tracker | `execute --chain` |
-| `*.log` | Execution logs | `execute` |
+| Files present | Phase |
+|---|---|
+| draft in `inbox/` only | draft (untriaged) |
+| spec in `tasks/` | pending |
+| run-record + live PID | running |
+| run-record + dead PID + no `merge.md` | crashed (result read from the worktree) |
+| `agent.md` + `merge.md` | done (classified success/failure) |
+
+The spec being uncommitted does not block launching — the dirty-tree guard ignores
+`.todo-tasks/`, and `execute-plan.sh` commits the spec to trunk before cutting the worktree
+(so the squash-merge never collides with an untracked spec). You never hand-commit task files.
+
+`report.sh` is the **only** component that walks the filesystem and classifies state.
+`status.sh`, `monitor.sh`, and `list-pending.sh` are pure renderers over its TSV output.
+`archive.sh` is the **only** component that moves files (via `git rm`).
 
 ## Manual Merge Conflict Resolution
 
-When you manually resolve a merge conflict from an agent (e.g., merging the agent's branch yourself because auto-merge failed), you **must** clean up afterwards:
+When you manually resolve a merge conflict from an agent (auto-merge failed, so no
+`merge.md` was written and the worktree was kept), clean up afterwards:
 
-1. **Remove the worktree:**
+1. **Remove the worktree** (path shown in `status.sh` and in `.todo-tasks/.running/{slug}.run`):
    ```bash
    git worktree remove <worktree-path>
    ```
-   The worktree path is in the `.result.md` file.
 
 2. **Delete the agent branch** (it's already merged):
    ```bash
-   git branch -d feat/260401_claude_{slug}
+   git branch -d {trunk}_claude_{slug}
    ```
 
 3. **Archive the task:**
    ```bash
-   bash .claude/skills/todo-task/status.sh --archive-success
+   bash .claude/skills/todo-task/archive.sh {slug}
    ```
 
-If you skip these steps, future sessions will see stale worktrees and unresolved conflicts in status output, and may try to re-resolve them.
+If you skip these steps, future sessions will see stale worktrees in status output.
 
 ## Rules
 
-- `create` only writes to `.todo-tasks/`
-- `triage` only modifies existing files in `.todo-tasks/`
-- `execute` moves files through the lifecycle via shell scripts
-- Never manually move files to `.running/`, `.done/`, or `.archived/`
-- Never write `.result.md` files (agents create those)
-- **After manually resolving a merge conflict, always clean up** (remove worktree, delete branch, archive task)
+- `create` only writes `inbox/{slug}.md` (gitignored draft). Never commit it.
+- `triage` promotes the draft → `tasks/{slug}.md` and deletes the inbox draft (and may add a slug to an epic's `members:` list). Do not commit the spec — the orchestrator commits it at launch.
+- `execute` launches agents via shell scripts; it never moves files between directories.
+- **Never hand-commit task specs** — `execute-plan.sh`/`execute-chain.sh` commit them automatically before cutting the worktree.
+- **Never hand-edit `results/*.agent.md`** — it is worktree-owned and carried by the merge.
+- **Never write to `.running/`** — the run-record is the orchestrator's; the reporter only reads it.
+- **Never hand-move files** to archive — run `archive.sh` (it uses `git rm`).
+- **After manually resolving a merge conflict, always clean up** (remove worktree, delete branch, `archive.sh {slug}`).

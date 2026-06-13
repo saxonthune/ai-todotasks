@@ -55,6 +55,50 @@ SKIPPED_FILES=()
 SCAFFOLDED_FILES=()
 UPDATED_FILES=()
 
+# ─── Layout scaffolding (shared by fresh, --force, and --update) ──────────────
+# Creates the tracked lifecycle dirs + the gitignored inbox, and OVERWRITES the
+# project-local .todo-tasks/.gitignore (tool-managed — this is how new ignore
+# rules propagate on update). The repo's ROOT .gitignore is never touched.
+# task-config.sh is handled separately (preserve-only — it is user config).
+scaffold_layout() {
+  mkdir -p "${PROJECT_ROOT}/.todo-tasks"
+
+  # Tracked lifecycle directories. Git won't track empty dirs, so seed each with
+  # a .gitkeep. Lifecycle is derived from file presence within these stable
+  # categories — never from moving files between directories.
+  local d dir
+  for d in tasks results chains epics; do
+    dir="${PROJECT_ROOT}/.todo-tasks/${d}"
+    if [[ ! -d "$dir" ]]; then
+      mkdir -p "$dir"
+      touch "${dir}/.gitkeep"
+      SCAFFOLDED_FILES+=(".todo-tasks/${d}/")
+    fi
+  done
+
+  # inbox/ holds untriaged drafts (filed by `create`). Gitignored and local-only
+  # — a filed idea is not yet work and never touches git history.
+  mkdir -p "${PROJECT_ROOT}/.todo-tasks/inbox"
+
+  # Inner .gitignore — always overwrite so updated ignore rules land. This is the
+  # tool's file, distinct from the repo's root .gitignore (which we never edit).
+  local gitignore_dst="${PROJECT_ROOT}/.todo-tasks/.gitignore"
+  local existed=true
+  [[ -f "$gitignore_dst" ]] || existed=false
+  cat > "$gitignore_dst" << 'GITIGNORE'
+inbox/
+.running/
+.archived/
+*.log
+.version
+GITIGNORE
+  if [[ "$existed" == "false" ]]; then
+    SCAFFOLDED_FILES+=(".todo-tasks/.gitignore")
+  else
+    UPDATED_FILES+=(".todo-tasks/.gitignore")
+  fi
+}
+
 # ─── Acquire source files ────────────────────────────────────────────────────
 
 TMPDIR_CREATED=""
@@ -95,13 +139,18 @@ fi
 
 SKILL_FILES=(
   "skills/todo-task/SKILL.md"
+  "skills/todo-task/SETUP.md"
   "skills/todo-task/lib.sh"
+  "skills/todo-task/report.sh"
   "skills/todo-task/execute-plan.sh"
   "skills/todo-task/launch.sh"
   "skills/todo-task/launch-chain.sh"
   "skills/todo-task/execute-chain.sh"
   "skills/todo-task/status.sh"
   "skills/todo-task/monitor.sh"
+  "skills/todo-task/list-pending.sh"
+  "skills/todo-task/list-drafts.sh"
+  "skills/todo-task/archive.sh"
 )
 
 mkdir -p "${PROJECT_ROOT}/.claude/skills/todo-task"
@@ -233,8 +282,10 @@ if $UPDATE; then
     fi
   done
 
-  # Step D: Write new version
-  mkdir -p "${PROJECT_ROOT}/.todo-tasks"
+  # Step D: Scaffold/refresh layout (new dirs + refreshed inner .gitignore) and
+  # write the new version. Existing installs picking up this update get the new
+  # tracked directories and the latest ignore rules.
+  scaffold_layout
   if [[ -n "$AVAILABLE_VER" ]]; then
     echo "$AVAILABLE_VER" > "${PROJECT_ROOT}/.todo-tasks/.version"
   fi
@@ -325,6 +376,9 @@ done
 
 mkdir -p "${PROJECT_ROOT}/.todo-tasks"
 
+# Lifecycle dirs, inbox, and the tool-managed inner .gitignore (always refreshed).
+scaffold_layout
+
 # task-config.sh — never overwrite (always preserve user config)
 CONFIG_DST="${PROJECT_ROOT}/.todo-tasks/task-config.sh"
 CONFIG_SRC="${SOURCE_DIR}/skills/todo-task/task-config.template.sh"
@@ -336,19 +390,6 @@ if [[ ! -f "$CONFIG_DST" ]]; then
     echo "WARNING: task-config.template.sh not found, skipping task-config.sh"
   fi
   SCAFFOLDED_FILES+=(".todo-tasks/task-config.sh (operational settings: budget, retries, worktree prefix)")
-fi
-
-# .gitignore — only create if missing
-GITIGNORE_DST="${PROJECT_ROOT}/.todo-tasks/.gitignore"
-if [[ ! -f "$GITIGNORE_DST" ]]; then
-  cat > "$GITIGNORE_DST" << 'GITIGNORE'
-.running/
-.done/
-.archived/
-*.log
-.version
-GITIGNORE
-  SCAFFOLDED_FILES+=(".todo-tasks/.gitignore")
 fi
 
 # Write installed version
