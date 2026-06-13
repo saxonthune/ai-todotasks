@@ -84,3 +84,15 @@ Edit `.todo-tasks/task-config.sh` to set your project's build and test commands.
 - `task-config.sh` resolution order: `${REPO_ROOT}/.todo-tasks/task-config.sh` first, then fall back to `${SCRIPT_DIR}/task-config.sh`
 - Test changes by installing into a scratch repo and running the full lifecycle
 - The `agents/` directory and `skills/execute-plan/` are legacy — all functionality lives in `skills/todo-task/`
+
+## Searching and reading files
+
+Use the dedicated tools — they're allowlisted and don't trigger approval prompts. Shell pipelines that wrap file access (`cd`, `xargs`, `sh -c`, output redirection, `find … | cat`) do trigger prompts. This list grows as new anti-patterns surface.
+
+- DON'T `find … -name '*.sh' | xargs cat` — DO use Glob to list, then Read each file (Read takes parallel calls).
+- DON'T `cd some/dir && cmd` — DO pass absolute paths; for unavoidable multi-step shell use a single subshell `(cd dir && cmd)`.
+- DON'T `find … | xargs -I{} sh -c '…'` — DO use Glob/Grep, or Read files individually.
+- DON'T `grep -r pattern path/` — DO use the Grep tool.
+- DON'T `cat file` to read — DO use the Read tool.
+- DON'T loop the shell over files (`for f in …; do cat $f; done`) — variable expansion blocks auto-approval; DO issue parallel Read calls, one per file.
+- DON'T lead a command with `cd` (e.g. `cd repo && grep … && echo …`) — mixing a directory change with output redirection bypasses path resolution and blocks auto-approval; DO pass absolute paths to each command, or wrap unavoidable multi-step shell in a single subshell `(cd dir && cmd)`.
