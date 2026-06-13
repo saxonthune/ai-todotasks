@@ -18,6 +18,8 @@ Route based on `$ARGUMENTS[0]`:
 | `/todo-task status` | Full lifecycle report |
 | `/todo-task monitor` | Live dashboard (watch loop) |
 
+First-time setup: if todo-task scripts prompt for approval, read `.claude/skills/todo-task/SETUP.md` for a suggested allowlist (kept separate to avoid context pollution).
+
 ---
 
 ## Mode: `status` (default when no arguments)
@@ -132,7 +134,7 @@ Refine a pending task from a rough idea into an executable spec that a headless 
 
 If no slug provided:
 ```bash
-ls .todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|.todo-tasks/||;s|\.md$||'
+bash .claude/skills/todo-task/list-pending.sh
 ```
 
 Present tasks to the user with `AskUserQuestion`:
@@ -315,7 +317,7 @@ Launch a headless agent to implement a triaged plan.
 
 1. **Select** — If no slug, list available plans:
    ```bash
-   ls .todo-tasks/*.md 2>/dev/null | grep -v '\.epic\.md$' | sed 's|.todo-tasks/||;s|\.md$||'
+   bash .claude/skills/todo-task/list-pending.sh
    ```
    Ask the user which plan to execute.
 
