@@ -115,10 +115,13 @@ classify_slug() {
   # Commits + notes come from the agent.md when we have one.
   if [[ -n "$agent_md" ]]; then
     commits="$(parse_result_field "$agent_md" commits)"; commits="${commits:-0}"
-    local dev err
+    local dev err unc
     dev="$(parse_result_field "$agent_md" "surface deviations")"
     err="$(parse_result_field "$agent_md" error)"
+    unc="$(parse_result_field "$agent_md" uncommitted)"
     [[ "$dev" == "declared" ]] && notes="surface deviations declared — re-triage downstream. "
+    [[ -n "$unc" && "$unc" != "none" && "$unc" != "0" ]] && \
+      notes="${notes}${unc} uncommitted in worktree (salvageable). "
     [[ -n "$err" ]] && notes="${notes}${err}"
   fi
   [[ -z "$notes" ]] && notes="$NONE"

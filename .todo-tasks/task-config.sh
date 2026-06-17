@@ -16,5 +16,8 @@ TEST_CMD="true"
 MAX_BUDGET="5.00"
 RETRY_BUDGET="3.00"
 
+# Maximum agent turns per headless session
+MAX_TURNS=100
+
 # Maximum retry attempts when build/test fails
 MAX_RETRIES=2

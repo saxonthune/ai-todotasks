@@ -156,6 +156,10 @@ classifies state. Coarse phase comes from **file presence**; outcome detail come
 5. spec present (in `tasks/`) → **pending**
 6. draft only (in gitignored `inbox/`, no spec) → **draft**
 
+A 0-commit run whose worktree contains uncommitted changes classifies as `salvageable`
+(attention bucket) rather than `no_op` or `session_failed`. This state is intentionally
+excluded from `--force-failed` auto-archiving — recovery is a human action.
+
 For unmerged/failed tasks the reporter reads `agent.md` from the run-record-pointed
 worktree. All renderers (status, monitor) consume the reporter's output; none walk the
 filesystem or parse formats themselves.
