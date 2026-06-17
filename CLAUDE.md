@@ -87,12 +87,6 @@ Edit `.todo-tasks/task-config.sh` to set your project's build and test commands.
 
 ## Searching and reading files
 
-Use the dedicated tools — they're allowlisted and don't trigger approval prompts. Shell pipelines that wrap file access (`cd`, `xargs`, `sh -c`, output redirection, `find … | cat`) do trigger prompts. This list grows as new anti-patterns surface.
-
-- DON'T `find … -name '*.sh' | xargs cat` — DO use Glob to list, then Read each file (Read takes parallel calls).
-- DON'T `cd some/dir && cmd` — DO pass absolute paths; for unavoidable multi-step shell use a single subshell `(cd dir && cmd)`.
-- DON'T `find … | xargs -I{} sh -c '…'` — DO use Glob/Grep, or Read files individually.
-- DON'T `grep -r pattern path/` — DO use the Grep tool.
-- DON'T `cat file` to read — DO use the Read tool.
-- DON'T loop the shell over files (`for f in …; do cat $f; done`) — variable expansion blocks auto-approval; DO issue parallel Read calls, one per file.
-- DON'T lead a command with `cd` (e.g. `cd repo && grep … && echo …`) — mixing a directory change with output redirection bypasses path resolution and blocks auto-approval; DO pass absolute paths to each command, or wrap unavoidable multi-step shell in a single subshell `(cd dir && cmd)`.
+Shell hygiene rules — use the dedicated tools and avoid command forms that
+trigger approval prompts — live in the user-level `~/.claude/CLAUDE.md`, shared
+across all repos.
