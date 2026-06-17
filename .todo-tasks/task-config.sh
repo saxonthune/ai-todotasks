@@ -2,8 +2,9 @@
 # ─── Task System Configuration ───────────────────────────────────────────────
 # Project-specific settings for ai-todotasks itself.
 
-# Prefix for agent worktree directories (created alongside the repo root)
-WORKTREE_PREFIX="agent"
+# Prefix for agent worktree directories (created alongside the repo root).
+# Worktrees are named "<prefix>-<repo>-<slug>". Defaults to "todotask".
+# WORKTREE_PREFIX="todotask"
 
 # Command to install dependencies in a fresh worktree
 INSTALL_CMD="true"

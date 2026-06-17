@@ -10,8 +10,10 @@
 # Per-task verification commands live in each plan's ## Verification section
 # (a fenced bash block). This file is for project-wide operational settings only.
 
-# Prefix for agent worktree directories (created alongside the repo root)
-WORKTREE_PREFIX="agent"
+# Prefix for agent worktree directories (created alongside the repo root).
+# Worktrees are named "<prefix>-<repo>-<slug>" so they don't collide across
+# repos. Defaults to "todotask"; uncomment to override.
+# WORKTREE_PREFIX="todotask"
 
 # Budget caps for headless Claude sessions (USD)
 MAX_BUDGET="5.00"
