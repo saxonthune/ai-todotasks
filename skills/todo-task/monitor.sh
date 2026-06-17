@@ -239,7 +239,7 @@ render_overview() {
       printf '  %s%s%s %-*s %s%7s%s  %s%sc  %s%s%s\n' \
         "$YELLOW" "$spin" "$RESET" \
         "$aslugw" "$(truncate "$slug" "$aslugw")" \
-        "$CYAN" "$(elapsed_str "$live")" "$RESET" \
+        "$CYAN" "$(age_ago "$live")" "$RESET" \
         "$DIM" "$commits" "$(truncate "$branch" "$bw")" "$RESET" "$EL"
     done
     local name cstatus done_n total current cw cb bar col mark
@@ -327,8 +327,8 @@ render_active() {
       IFS=$'\t' read -r slug commits branch worktree age <<< "$e"
       live=$(( age + delta ))
       printf '  %s%s%s %s%s%s%s\n' "$YELLOW" "$spin" "$RESET" "$BOLD" "$slug" "$RESET" "$EL"
-      printf '      %selapsed%s %s · %scommits%s %s · %sbranch%s %s%s\n' \
-        "$DIM" "$RESET" "$(elapsed_str "$live")" \
+      printf '      %slast seen%s %s · %scommits%s %s · %sbranch%s %s%s\n' \
+        "$DIM" "$RESET" "$(age_ago "$live")" \
         "$DIM" "$RESET" "$commits" \
         "$DIM" "$RESET" "$branch" "$EL"
       [[ "$worktree" != "$NONE" ]] && printf '      %sworktree%s %s%s\n' "$DIM" "$RESET" "$worktree" "$EL"

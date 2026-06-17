@@ -215,6 +215,23 @@ phase_copy_plan() {
   echo ""
 }
 
+# format_stream_events — reads NDJSON events on stdin, prints a concise digest line per event.
+# Used to provide live progress during a headless session. Malformed lines are silently skipped.
+format_stream_events() {
+  jq -r --unbuffered '
+    if .type == "assistant" then
+      (.message.content[]? |
+        if .type == "text" then
+          "  " + (.text | gsub("\n"; " ") | .[0:100])
+        elif .type == "tool_use" then
+          "→ " + .name + ": " +
+            (.input.command // .input.file_path // .input.pattern // .input.path // "" | tostring | .[0:80])
+        else empty end)
+    elif .type == "result" then "✓ session complete"
+    else empty end
+  ' 2>/dev/null || true
+}
+
 # phase_run_session
 # Runs headless Claude. Sets SESSION_ID, CLAUDE_RESULT, SESSION_STATE, SESSION_ERROR.
 phase_run_session() {
@@ -248,21 +265,31 @@ After '## Notes', you MUST also write a '## Surface Deviations' section listing 
 (a missing or renamed symbol, a changed signature, a behavior that differs). \
 If there were no deviations, or the plan had no Surface block, write '## Surface Deviations' followed by 'None.'"
 
-  CLAUDE_OUTPUT=$(claude -p \
+  local stream_raw stream_err
+  stream_raw="$(mktemp)"; stream_err="$(mktemp)"
+
+  claude -p \
     --allowedTools "Read,Write,Edit,Glob,Grep,Bash" \
     --permission-mode bypassPermissions \
-    --output-format json \
+    --output-format stream-json --verbose \
     --max-turns 100 \
     --model sonnet \
     --max-budget-usd "${MAX_BUDGET}" \
-    "${CLAUDE_PROMPT}" 2>&1)
-  CLAUDE_EXIT=$?
+    "${CLAUDE_PROMPT}" 2>"$stream_err" \
+    | tee "$stream_raw" \
+    | format_stream_events
+  CLAUDE_EXIT=${PIPESTATUS[0]}
 
-  # Extract session ID for potential retry
-  JQ_ALT='.session_id // empty'
-  SESSION_ID=$(echo "${CLAUDE_OUTPUT}" | jq -r "$JQ_ALT" 2>/dev/null || echo "")
-  JQ_ALT='.result // empty'
-  CLAUDE_RESULT=$(echo "${CLAUDE_OUTPUT}" | jq -r "$JQ_ALT" 2>/dev/null || echo "${CLAUDE_OUTPUT}")
+  # Extract session ID and result from the final result event in the NDJSON stream
+  SESSION_ID=$(jq -r 'select(.type=="result") | .session_id // empty' "$stream_raw" 2>/dev/null | tail -1)
+  CLAUDE_RESULT=$(jq -r 'select(.type=="result") | .result // empty' "$stream_raw" 2>/dev/null | tail -1)
+
+  # Fallback: if CLAUDE_RESULT is empty (crash before result event), use stderr tail
+  if [[ -z "$CLAUDE_RESULT" ]]; then
+    CLAUDE_RESULT="$(tail -5 "$stream_err" 2>/dev/null || true)"
+  fi
+
+  rm -f "$stream_raw" "$stream_err"
 
   # Detect session failure
   SESSION_STATE="$SM_SESSION_COMPLETED"

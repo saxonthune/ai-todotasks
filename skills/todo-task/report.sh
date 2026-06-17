@@ -86,9 +86,10 @@ classify_slug() {
     bucket="$(state_bucket "$overall")"
     age="$(age_of "$agent_md")"
   elif [[ -n "$run_file" ]] && run_is_alive "$run_file"; then
-    # Rule 3: run-record + live PID → running.
+    # Rule 3: run-record + live PID → running. Prefer .log mtime (last activity) over run-record mtime.
     phase="running"
-    age="$(age_of "$run_file")"
+    local logf="${TODO}/.running/${slug}.log"
+    if [[ -f "$logf" ]]; then age="$(age_of "$logf")"; else age="$(age_of "$run_file")"; fi
   elif [[ -n "$run_file" && ! -f "$merge_md" ]]; then
     # Rule 4: run-record + dead PID + no merge.md → crashed.
     phase="crashed"
