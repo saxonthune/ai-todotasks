@@ -132,6 +132,22 @@ parse_result_field() {
   echo "${val,,}"
 }
 
+# surface_deviation_state <deviations-section-body>
+# Classifies the extracted "## Surface Deviations" section body. The agent is told
+# to write "None." when nothing deviated, but frequently appends an explanation
+# ("None. The plan had no declared Surface block."), so the decision keys on the
+# leading "None" word, not whole-body equality. A non-None first line ⇒ declared.
+surface_deviation_state() {
+  local body="$1" first
+  first=$(printf '%s\n' "$body" | sed '/^[[:space:]]*$/d' | head -n1 \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  if [[ -z "$first" || "$first" =~ ^[Nn]one([[:punct:][:space:]].*)?$ ]]; then
+    echo "none"
+  else
+    echo "declared"
+  fi
+}
+
 # ─── Run-record (the only ephemeral state; gitignored) ─────────────────────
 # A run-record supplies liveness (PID) and failure location (worktree path).
 # Lives at .todo-tasks/.running/{slug}.run (task) or chain-{slug}.run (chain).

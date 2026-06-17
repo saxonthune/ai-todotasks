@@ -283,12 +283,8 @@ If there were no deviations, or the plan had no Surface block, write '## Surface
     /^## Surface Deviations[[:space:]]*$/ { in_section=1; next }
     in_section && /^## / { exit }
     in_section { print }
-  ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' || true)
-  if [[ -z "$dev_body" || "$dev_body" == "None." || "$dev_body" == "None" ]]; then
-    SURFACE_DEVIATIONS="none"
-  else
-    SURFACE_DEVIATIONS="declared"
-  fi
+  ')
+  SURFACE_DEVIATIONS="$(surface_deviation_state "$dev_body")"
 
   echo "Claude session complete"
   if [[ -n "$SESSION_ID" ]]; then
