@@ -434,6 +434,22 @@ When you manually resolve a merge conflict from an agent (auto-merge failed, so 
 
 If you skip these steps, future sessions will see stale worktrees in status output.
 
+### Finalizing a deferred chain
+
+When a chain defers its merge (`awaiting-merge` or `conflict`) and you complete the merge
+by hand, the run-record lingers and the chain shows as `finalizable` on the dashboard.
+After you finish the merge, run:
+
+```bash
+bash .claude/skills/todo-task/finalize-chain.sh <chain-name>
+```
+
+This writes the chain definition to trunk, removes the worktree and branch, and clears the
+run-record. `archive.sh` then sweeps it as complete on the next run.
+
+The script refuses to act if the chain's phase results are not yet present on trunk HEAD —
+it will print the merge command and exit 1 without touching anything.
+
 ## Rules
 
 - `create` only writes `inbox/{slug}.md` (gitignored draft). Never commit it.

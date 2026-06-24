@@ -288,22 +288,8 @@ mapfile -t CHAIN_PATHS < <(git diff --name-only "${REAL_TRUNK}...${CHAIN_BRANCH}
 
 # Post-success: write chain definition, clean up worktree/branch/run-record.
 do_post_merge_success() {
-  mkdir -p "${TODO}/chains"
   local chain_def="${TODO}/chains/${CHAIN_NAME}.md"
-  {
-    echo "# Chain: ${CHAIN_NAME}"
-    echo ""
-    echo "chain: ${CHAIN_NAME}"
-    echo "phases: ${PHASES_CSV}"
-    [[ -n "$AFTER" ]] && echo "after: ${AFTER}"
-    echo "completed: $(date -Iseconds)"
-    echo ""
-    echo "## Phases"
-    echo ""
-    for slug in "${PHASES[@]}"; do
-      echo "- ${slug}"
-    done
-  } > "$chain_def"
+  write_chain_definition "$chain_def" "$CHAIN_NAME" "$PHASES_CSV" "$AFTER"
   git add "$chain_def" && git commit -m "todotask: chain definition ${CHAIN_NAME}" >/dev/null 2>&1 || true
   echo "Wrote chain definition: ${chain_def}"
 
@@ -335,6 +321,7 @@ if [[ "$_probe_exit" -ne 0 ]]; then
     echo "Content conflict merging ${CHAIN_BRANCH} into ${REAL_TRUNK}."
     echo "Chain branch and worktree left intact. Resolve then:"
     echo "  git merge --squash ${CHAIN_BRANCH} && git commit -m 'feat: chain-${CHAIN_NAME} (agent)'"
+    echo "After completing the merge, finalize: bash .claude/skills/todo-task/finalize-chain.sh ${CHAIN_NAME}"
     echo ""
     echo "See: ${CHAIN_WORKTREE}/.todo-tasks/results/${CHAIN_NAME}.conflict.md"
     exit 1
@@ -371,6 +358,7 @@ else
   echo "Merge deferred — a chain-touched file is uncommitted in the working tree."
   echo "Commit or stash the overlapping change, then:"
   echo "  git merge --squash ${CHAIN_BRANCH} && git commit -m 'feat: chain-${CHAIN_NAME} (agent)'"
+  echo "After completing the merge, finalize: bash .claude/skills/todo-task/finalize-chain.sh ${CHAIN_NAME}"
   echo ""
   echo "See: ${CHAIN_WORKTREE}/.todo-tasks/results/${CHAIN_NAME}.conflict.md"
   exit 1
