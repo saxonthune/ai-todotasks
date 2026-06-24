@@ -364,15 +364,9 @@ The predecessor must be a standalone task (not part of the chain). It merges to 
 
 ## Mode: `monitor`
 
-Launch a live dashboard that refreshes every 5 seconds, showing running agents, recent completions, and epic progress.
+Launch the live dashboard — a self-refreshing TUI showing running agents, recent completions, and epic progress.
 
-Tell the user to run this in a separate terminal:
-
-```bash
-watch -n5 bash .claude/skills/todo-task/monitor.sh
-```
-
-Or run it once for a snapshot:
+Tell the user to run it in a separate terminal (it redraws on its own; press `q` or `Ctrl-C` to exit):
 
 ```bash
 bash .claude/skills/todo-task/monitor.sh

@@ -58,6 +58,35 @@ install.sh                    — remote installer (curl | bash)
 .todo-tasks/.gitignore        — ignores .running/, .done/, .archived/, *.log
 ```
 
+## ⚠️ Source of truth vs. installed copy — READ THIS BEFORE EDITING THE SKILL
+
+This repo **dogfoods its own skill**, so two copies of every skill file exist. They are
+NOT the same role:
+
+| Path | Role | Tracked? |
+|------|------|----------|
+| `skills/todo-task/` | **THE TEMPLATE — the source of truth. ALL edits go here.** | ✅ tracked in git |
+| `.claude/skills/todo-task/` | The **installed copy** this repo runs when you invoke `/todo-task`. A dogfood artifact. | ❌ gitignored (`.claude/` is in the root `.gitignore`) |
+
+Rules that follow from this — do not violate them:
+
+- **Edit `skills/todo-task/` only.** It is the tracked source. Never hand-edit
+  `.claude/skills/todo-task/` expecting it to persist — it is gitignored, so the change is
+  invisible to git and will be lost on the next reinstall.
+- **Task specs MUST name `skills/todo-task/…` in "Files to Modify" and verification** —
+  never `.claude/skills/…`. The installed copy is gitignored, so it is **absent from the
+  git worktrees** that headless agents run in: a spec pointing at `.claude/skills/…` will
+  not find the file in the worktree, and any file an agent writes there is untracked and
+  never merges back.
+- **After changing the skill, refresh the installed copy** so the running `/todo-task`
+  actually uses the new code:
+  ```bash
+  bash install.sh --force        # re-copy template → .claude/skills/todo-task/
+  ```
+  (`install.sh` copies `skills/todo-task/` → `.claude/skills/todo-task/`. In this repo some
+  files may currently be hardlinked between the two as a convenience, but that is incidental
+  — treat `skills/todo-task/` as canonical and reinstall to sync.)
+
 ## Installation
 
 ```bash
@@ -80,6 +109,7 @@ Edit `.todo-tasks/task-config.sh` to set your project's build and test commands.
 
 ## Working on this repo
 
+- **Edit the template `skills/todo-task/`, never the gitignored install `.claude/skills/todo-task/`** — see the "Source of truth vs. installed copy" section above. Reinstall (`bash install.sh --force`) to refresh the running copy after a change.
 - All scripts must work when copied into a project (no references back to this repo)
 - `task-config.sh` resolution order: `${REPO_ROOT}/.todo-tasks/task-config.sh` first, then fall back to `${SCRIPT_DIR}/task-config.sh`
 - Test changes by installing into a scratch repo and running the full lifecycle
