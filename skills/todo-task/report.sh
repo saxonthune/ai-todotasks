@@ -197,8 +197,13 @@ emit_chains() {
         status="running"
       fi
     else
-      # Dead with no trunk definition → failed (crashed before/at final merge).
-      status="failed"
+      # Dead with no trunk definition — check merge_state for deferred/conflict.
+      local mstate; mstate="$(read_run_field "$run" merge_state)"
+      if [[ -n "$mstate" ]]; then
+        status="$mstate"   # awaiting-merge | conflict
+      else
+        status="failed"    # genuine crash — no marker was written
+      fi
     fi
 
     printf 'chain\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \

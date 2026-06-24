@@ -41,6 +41,10 @@ readonly SM_BUCKET_READY="ready_for_review"
 readonly SM_BUCKET_QUESTIONABLE="questionable"
 readonly SM_BUCKET_ATTENTION="attention"
 
+# Chain merge states — run-record merge_state: field; used as chain status by reporter/renderers
+readonly SM_CHAIN_AWAITING_MERGE="awaiting-merge"
+readonly SM_CHAIN_CONFLICT="conflict"
+
 # derive_overall_state <session> <verification> <merge> [trunk] [uncommitted]
 # Maps (session, verification, merge, trunk, uncommitted) → overall state.
 # uncommitted: human summary ("3 files, 280 lines") or "none"/"0"/empty when clean.
@@ -220,6 +224,33 @@ read_run_field() {
 clear_run_record() {
   local slug="$1" kind="${2:-task}"
   rm -f "$(run_record_path "$slug" "$kind")"
+}
+
+# write_chain_merge_note <results_dir> <chain_name> <branch> <state> <paths> <summary>
+# Structured breadcrumb so the trunk agent/human resolves without log-spelunking.
+write_chain_merge_note() {
+  local dir="$1" name="$2" branch="$3" state="$4" paths="$5" summary="$6"
+  mkdir -p "$dir"
+  {
+    echo "# Chain ${name}: ${state}"
+    echo ""
+    echo "state: ${state}"
+    echo "branch: ${branch}"
+    echo ""
+    echo "## Merge command"
+    echo ""
+    echo '```sh'
+    echo "git merge --squash ${branch} && git commit -m 'feat: chain-${name} (agent)'"
+    echo '```'
+    echo ""
+    echo "## Conflicting / overlapping paths"
+    echo ""
+    if [[ -n "$paths" ]]; then printf '%s\n' "$paths" | sed 's/^/- /'; else echo "- (none)"; fi
+    echo ""
+    echo "## What this chain changed"
+    echo ""
+    echo "${summary}"
+  } > "${dir}/${name}.conflict.md"
 }
 
 # run_is_alive <run_file>

@@ -130,6 +130,7 @@ if [[ ${#CHAINS[@]} -gt 0 ]]; then
   echo ""
   echo "| Chain | Status | Progress | Current/Failed | Upcoming |"
   echo "|-------|--------|----------|----------------|----------|"
+  _chain_notes=()
   for row in "${CHAINS[@]}"; do
     IFS='|' read -r name cstatus done_n total current phases worktree branch <<< "$row"
     # Active-phase progress phrasing
@@ -160,9 +161,21 @@ if [[ ${#CHAINS[@]} -gt 0 ]]; then
     _upcoming="${_upcoming_parts[*]+"${_upcoming_parts[*]}"}"
     [[ -z "$_upcoming" ]] && _upcoming="—"
     echo "| **${name}** | ${cstatus} | ${_progress} | ${current} | ${_upcoming} |"
-    [[ "$cstatus" == "failed" ]] && HAS_ATTENTION=true
+    [[ "$cstatus" == "failed" || "$cstatus" == "conflict" ]] && HAS_ATTENTION=true
+    case "$cstatus" in
+      awaiting-merge)
+        _chain_notes+=("**${name}** — ready to merge: \`git merge --squash ${branch} && git commit -m 'feat: chain-${name} (agent)'\`") ;;
+      conflict)
+        _chain_notes+=("**${name}** — merge conflict: see \`.todo-tasks/results/${name}.conflict.md\`") ;;
+    esac
   done
   echo ""
+  if [[ ${#_chain_notes[@]} -gt 0 ]]; then
+    for _cn in "${_chain_notes[@]}"; do
+      echo "$_cn"
+    done
+    echo ""
+  fi
 fi
 
 if [[ ${#EPICS[@]} -gt 0 ]]; then

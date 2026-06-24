@@ -361,7 +361,7 @@ render_active() {
     local i ph ph_start
     for e in "${CHAINS[@]}"; do
       IFS=$'\t' read -r name cstatus done_n total current phases cw cb <<< "$e"
-      col="$YELLOW"; [[ "$cstatus" == failed ]] && col="$RED"
+      col="$YELLOW"; [[ "$cstatus" == failed || "$cstatus" == conflict ]] && col="$RED"
       case "$cstatus" in
         running)
           printf '  %s%s%s  %srunning%s  phase %d/%d: %s%s\n' \
@@ -374,6 +374,14 @@ render_active() {
         waiting)
           printf '  %s%s%s  %swaiting%s  %s%s%s\n' \
             "$BOLD" "$name" "$RESET" "$col" "$RESET" "$DIM" "$(truncate "$current" 40)" "$EL" ;;
+        awaiting-merge)
+          printf '  %s%s%s  %sready to merge%s  %d/%d%s\n' \
+            "$BOLD" "$name" "$RESET" \
+            "$CYAN" "$RESET" "$done_n" "$total" "$EL" ;;
+        conflict)
+          printf '  %s%s%s  %smerge conflict%s  %d/%d%s\n' \
+            "$BOLD" "$name" "$RESET" \
+            "$col" "$RESET" "$done_n" "$total" "$EL" ;;
       esac
       [[ "$cw" != "$NONE" ]] && printf '      %sworktree%s %s%s\n' "$DIM" "$RESET" "$cw" "$EL"
       IFS=',' read -ra ph_arr <<< "$phases"
@@ -418,7 +426,7 @@ render_chains() {
   for e in "${CHAINS[@]}"; do
     IFS=$'\t' read -r name cstatus done_n total current phases cw cb <<< "$e"
     col="$YELLOW"
-    [[ "$cstatus" == "failed" ]] && col="$RED"
+    [[ "$cstatus" == "failed" || "$cstatus" == "conflict" ]] && col="$RED"
     case "$cstatus" in
       running)
         printf '  %s%s%s  %srunning%s  phase %d/%d: %s%s\n' \
@@ -434,6 +442,14 @@ render_chains() {
         printf '  %s%s%s  %swaiting%s  %s%s%s\n' \
           "$BOLD" "$(truncate "$name" 24)" "$RESET" \
           "$col" "$RESET" "$DIM" "$(truncate "$current" "$nw")" "$EL" ;;
+      awaiting-merge)
+        printf '  %s%s%s  %sready to merge%s  %d/%d%s\n' \
+          "$BOLD" "$(truncate "$name" 24)" "$RESET" \
+          "$CYAN" "$RESET" "$done_n" "$total" "$EL" ;;
+      conflict)
+        printf '  %s%s%s  %smerge conflict%s  %d/%d%s\n' \
+          "$BOLD" "$(truncate "$name" 24)" "$RESET" \
+          "$col" "$RESET" "$done_n" "$total" "$EL" ;;
     esac
     # Indented upcoming phases (done phases hidden, current phase named above)
     IFS=',' read -ra ph_arr <<< "$phases"
