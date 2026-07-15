@@ -140,6 +140,10 @@ fi
 SKILL_FILES=(
   "skills/todo-task/SKILL.md"
   "skills/todo-task/SETUP.md"
+  "skills/todo-task/create.md"
+  "skills/todo-task/triage.md"
+  "skills/todo-task/execute.md"
+  "skills/todo-task/REFERENCE.md"
   "skills/todo-task/lib.sh"
   "skills/todo-task/report.sh"
   "skills/todo-task/execute-plan.sh"
