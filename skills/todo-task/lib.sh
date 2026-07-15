@@ -202,10 +202,10 @@ source_task_config() {
   fi
   WORKTREE_PREFIX="${WORKTREE_PREFIX:-todotask}"
   REPO_NAME="$(basename "${REPO_ROOT}")"
-  MAX_BUDGET="${MAX_BUDGET:-5.00}"
-  RETRY_BUDGET="${RETRY_BUDGET:-3.00}"
+  MAX_BUDGET="${MAX_BUDGET:-10.00}"
+  RETRY_BUDGET="${RETRY_BUDGET:-6.00}"
   MAX_RETRIES="${MAX_RETRIES:-4}"
-  MAX_TURNS="${MAX_TURNS:-100}"
+  MAX_TURNS="${MAX_TURNS:-200}"
 }
 
 # summarize_uncommitted <dir>
