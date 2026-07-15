@@ -52,6 +52,8 @@ bash .claude/skills/todo-task/archive.sh
 
 **Failed agents (`build_failure`/`session_failed`/`no_op`/`trunk_leak`, crashed, failed chains):** Do NOT archive by default. `archive.sh --force-failed` archives them explicitly once reviewed. First, ask the user what to do with `AskUserQuestion` (header "Failed agent"), offering: **Fix it now** (recommended — investigate the failure and fix the code in the existing worktree), **Re-triage and retry** (refine the plan to avoid the failure, then re-launch), **Archive and skip** (move to archived, don't retry).
 
+**Salvaged agents (`salvageable`, e.g. a crashed run finished and merged by hand):** Never `--force-failed`-eligible — a worktree with recoverable work is never auto-`rm`'d. Once the operator has finished the work by hand and squash-merged it to trunk, run `archive.sh --merged <slug>` to clean it up — this is the sanctioned exit, not hand-moving files into `.archived/`.
+
 ---
 
 ## Mode: `monitor`

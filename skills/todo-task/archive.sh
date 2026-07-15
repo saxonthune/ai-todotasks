@@ -10,6 +10,10 @@ set -uo pipefail
 #   archive.sh                 archive every auto-eligible outcome
 #   archive.sh <slug> [...]    archive specific task slug(s)
 #   archive.sh --force-failed  also archive failures (build/session/no-op/leak)
+#   archive.sh --merged <slug> archive slug(s) the operator merged/resolved by hand
+#                               (bypasses outcome eligibility, e.g. salvageable;
+#                               still skips a slug that is still running; requires
+#                               at least one explicit slug — never a sweep)
 #
 # Auto-eligibility (per outcome):
 #   success                              → yes
@@ -26,14 +30,21 @@ source "${SCRIPT_DIR}/lib.sh"
 
 TS="$(date +%Y%m%d)"
 FORCE_FAILED=false
+MERGED=false
 SLUGS=()
 for arg in "$@"; do
   case "$arg" in
     --force-failed) FORCE_FAILED=true ;;
+    --merged) MERGED=true ;;
     -*) echo "Unknown option: $arg"; exit 1 ;;
     *) SLUGS+=("$arg") ;;
   esac
 done
+
+if [[ "$MERGED" == "true" && ${#SLUGS[@]} -eq 0 ]]; then
+  echo "Usage: archive.sh --merged <slug> [...] — --merged requires explicit slug(s), it is never a sweep"
+  exit 1
+fi
 
 # force_eligible <overall> — failures that --force-failed will archive.
 # Note: SM_OVERALL_SALVAGEABLE is intentionally absent — never auto-rm a worktree
@@ -105,6 +116,10 @@ if [[ ${#SLUGS[@]} -gt 0 ]]; then
     if [[ "$phase" == "running" ]]; then
       echo "- Skipped ${slug} (still running)"; continue
     fi
+    if [[ "$MERGED" == "true" ]]; then
+      echo "- Archiving ${slug} (operator asserts merged to trunk)"
+      archive_one "$slug"; archived=$((archived+1)); continue
+    fi
     if [[ "$overall" == "$SM_OVERALL_SUCCESS" ]] || { [[ "$FORCE_FAILED" == "true" ]] && force_eligible "$overall"; }; then
       archive_one "$slug"; archived=$((archived+1))
     else
@@ -126,4 +141,7 @@ else
   done < <(bash "${SCRIPT_DIR}/report.sh" chain)
 fi
 
-[[ $archived -eq 0 ]] && echo "- Nothing to archive."
+if [[ $archived -eq 0 ]]; then
+  echo "- Nothing to archive."
+fi
+exit 0
