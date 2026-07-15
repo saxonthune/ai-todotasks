@@ -97,7 +97,7 @@ overall_label() {
   case "$1" in
     "$SM_OVERALL_SUCCESS")      echo "success" ;;
     "$SM_OVERALL_READY")        echo "ready" ;;
-    "$SM_OVERALL_NOOP")         echo "no-op" ;;
+    "$SM_OVERALL_NOOP")         echo "no changes" ;;
     "$SM_OVERALL_TRUNK_LEAK")   echo "trunk-leak" ;;
     "$SM_OVERALL_CONFLICT")     echo "conflict" ;;
     "$SM_OVERALL_DIRTY")        echo "dirty" ;;

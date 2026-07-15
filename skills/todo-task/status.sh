@@ -87,7 +87,9 @@ render_bucket() {
   echo "|-------|-------|---------|-------|"
   for row in "${rows[@]}"; do
     IFS='|' read -r slug overall commits notes <<< "$row"
-    echo "| **${slug}** | ${overall} | ${commits} | ${notes} |"
+    local disp="$overall"
+    [[ "$overall" == "$SM_OVERALL_NOOP" ]] && disp="no changes"
+    echo "| **${slug}** | ${disp} | ${commits} | ${notes} |"
   done
   echo ""
 }
@@ -110,7 +112,9 @@ if [[ ${#CRASHED[@]} -gt 0 ]]; then
   echo "|-------|-------|---------|----------|-------|"
   for row in "${CRASHED[@]}"; do
     IFS='|' read -r slug overall commits worktree notes <<< "$row"
-    echo "| **${slug}** | ${overall} | ${commits} | \`${worktree}\` | ${notes} |"
+    disp="$overall"
+    [[ "$overall" == "$SM_OVERALL_NOOP" ]] && disp="no changes"
+    echo "| **${slug}** | ${disp} | ${commits} | \`${worktree}\` | ${notes} |"
   done
   echo ""
 fi
