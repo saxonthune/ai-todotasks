@@ -138,6 +138,12 @@ if [[ ${#CHAINS[@]} -gt 0 ]]; then
   for row in "${CHAINS[@]}"; do
     IFS='|' read -r name cstatus done_n total current phases worktree branch progress <<< "$row"
     _progress="$progress"
+    # Defensive clamp: a chain marked failed/running after every phase already
+    # classified success (e.g. a crash in the chain's own final trunk merge)
+    # must never render as an impossible "phase N/total" with N > total.
+    if (( done_n >= total )); then
+      _progress="${total}/${total}"
+    fi
     # Upcoming phases only (queued, not done or current) — running/waiting states only
     IFS=',' read -ra _up_arr <<< "$phases"
     _upcoming_parts=()
