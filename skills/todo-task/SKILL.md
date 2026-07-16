@@ -29,22 +29,17 @@ First-time setup: if todo-task scripts prompt for approval, read `.claude/skills
 
 **IMPORTANT: ALWAYS run the status script FIRST. Do NOT read files, investigate errors, check git state, or do any other research before running this script. Show the script output to the user, then follow the triage flow below. Only investigate issues after the full triage flow is complete and the user asks you to.**
 
-Run the status script and display results:
+Run the status script with `--archive` and display results:
 
 ```bash
-bash .claude/skills/todo-task/status.sh
+bash .claude/skills/todo-task/status.sh --archive
 ```
 
-If `$ARGUMENTS` includes `--archive`, pass `--archive` through (status delegates to `archive.sh`).
+`--archive` renders the board AND auto-archives clean successes and completed chains in the same step (status delegates to `archive.sh`), printing an `- Archived {slug}` line for each. Make this the default — archiving successes is routine, derived cleanup, not a decision, so never ask whether to do it. Add `--force-failed` only if the user also wants failures archived.
 
 ### Triage completed agents
 
-After showing status, handle completed agents:
-
-**Successful agents & completed chains:** Archive automatically. `archive.sh` (no args) `git rm`s every auto-eligible outcome (clean successes, completed chains) and removes their worktrees/branches:
-```bash
-bash .claude/skills/todo-task/archive.sh
-```
+The `--archive` render above already archived clean successes and completed chains and reported which ones — relay those lines to the user. Then handle the states it deliberately leaves in place (these need a human, and are never auto-archived):
 
 **Conflict agents (`merge_conflict` / `merged_with_markers`):** NOT auto-archived — the worktree is kept for resolution. Check if the branch was already merged manually. If `git log` shows the agent's commits on the current branch, the conflict was already resolved — then `archive.sh {slug}` cleans up. If not, treat as a failed merge and ask the user.
 
