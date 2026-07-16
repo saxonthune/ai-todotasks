@@ -35,6 +35,10 @@ readonly SM_OVERALL_BUILD_FAIL="build_failure"
 readonly SM_OVERALL_SESSION_FAIL="session_failed"
 readonly SM_OVERALL_SALVAGEABLE="salvageable"
 
+# Archive disposition (recorded by archive.sh, read by report.sh:emit_archived).
+# Resolved archives reuse SM_OVERALL_SUCCESS ("success"); abandoned ones use this.
+readonly SM_ARCHIVE_ABANDONED="abandoned"
+
 # Buckets (for dashboard grouping)
 readonly SM_BUCKET_SUCCESS="success"
 readonly SM_BUCKET_READY="ready_for_review"

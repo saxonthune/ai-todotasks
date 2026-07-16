@@ -56,9 +56,9 @@ force_eligible() {
   esac
 }
 
-# archive_one <slug>
+# archive_one <slug> <disposition>   disposition ∈ {success, abandoned}
 archive_one() {
-  local slug="$1"
+  local slug="$1" disposition="${2:-$SM_OVERALL_SUCCESS}"
   mkdir -p "${TODO}/.archived"
 
   local run="${TODO}/.running/${slug}.run" wt="" br=""
@@ -84,6 +84,8 @@ archive_one() {
     git -C "$REPO_ROOT" commit -q -m "todotask: archive ${slug}" >/dev/null 2>&1 || true
   fi
 
+  printf '%s\n' "$disposition" > "${TODO}/.archived/${TS}-${slug}.disposition"
+
   clear_run_record "$slug"
   [[ -n "$wt" && -d "$wt" ]] && git worktree remove --force "$wt" 2>/dev/null || true
   [[ -n "$br" ]] && git branch -D "$br" 2>/dev/null || true
@@ -100,6 +102,7 @@ archive_chain() {
   if ! git -C "$REPO_ROOT" diff --cached --quiet; then
     git -C "$REPO_ROOT" commit -q -m "todotask: archive chain ${name}" >/dev/null 2>&1 || true
   fi
+  printf '%s\n' "$SM_OVERALL_SUCCESS" > "${TODO}/.archived/${TS}-chain-${name}.disposition"
   echo "- Archived chain ${name}"
 }
 
@@ -118,10 +121,12 @@ if [[ ${#SLUGS[@]} -gt 0 ]]; then
     fi
     if [[ "$MERGED" == "true" ]]; then
       echo "- Archiving ${slug} (operator asserts merged to trunk)"
-      archive_one "$slug"; archived=$((archived+1)); continue
+      archive_one "$slug" "$SM_OVERALL_SUCCESS"; archived=$((archived+1)); continue
     fi
     if [[ "$overall" == "$SM_OVERALL_SUCCESS" ]] || { [[ "$FORCE_FAILED" == "true" ]] && force_eligible "$overall"; }; then
-      archive_one "$slug"; archived=$((archived+1))
+      disp="$SM_OVERALL_SUCCESS"
+      [[ "$overall" != "$SM_OVERALL_SUCCESS" ]] && disp="$SM_ARCHIVE_ABANDONED"
+      archive_one "$slug" "$disp"; archived=$((archived+1))
     else
       echo "- Skipped ${slug} (${overall}) — pass --force-failed to archive failures, or merge/resolve manually"
     fi
@@ -140,7 +145,9 @@ else
   while IFS=$'\t' read -r _ slug phase overall _bucket _commits _wt _br _age _notes; do
     [[ "$phase" == "done" || "$phase" == "crashed" ]] || continue
     if [[ "$overall" == "$SM_OVERALL_SUCCESS" ]] || { [[ "$FORCE_FAILED" == "true" ]] && force_eligible "$overall"; }; then
-      archive_one "$slug"; archived=$((archived+1))
+      disp="$SM_OVERALL_SUCCESS"
+      [[ "$overall" != "$SM_OVERALL_SUCCESS" ]] && disp="$SM_ARCHIVE_ABANDONED"
+      archive_one "$slug" "$disp"; archived=$((archived+1))
     fi
   done < <(bash "${SCRIPT_DIR}/report.sh" task)
 

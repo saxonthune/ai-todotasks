@@ -412,6 +412,8 @@ render_archived_rows() {
     IFS=$'\t' read -r age overall slug commits notes <<< "$e"
     if [[ "$overall" == "$NONE" ]]; then
       col="$DIM"; lbl="archived"
+    elif [[ "$overall" == "$SM_ARCHIVE_ABANDONED" ]]; then
+      col="$DIM"; lbl="done"
     else
       col="$(overall_color "$overall")"; lbl="$(overall_label "$overall")"
     fi
