@@ -127,6 +127,15 @@ if [[ ${#SLUGS[@]} -gt 0 ]]; then
     fi
   done
 else
+  # Refuse the unscoped sweep inside a todotask agent worktree: it would archive
+  # (git rm) sibling tasks' merged results and carry the deletions to trunk on the
+  # agent's squash-merge. Explicit `archive.sh <slug>` / `--merged` remain allowed.
+  current_branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+  if [[ "$current_branch" == *_claude* ]]; then
+    echo "- Refusing sweep: running inside a todotask agent worktree (branch ${current_branch})."
+    echo "  The unscoped sweep archives sibling tasks. Run archive from trunk, or name a slug."
+    exit 0
+  fi
   # Sweep: every auto-eligible outcome.
   while IFS=$'\t' read -r _ slug phase overall _bucket _commits _wt _br _age _notes; do
     [[ "$phase" == "done" || "$phase" == "crashed" ]] || continue
