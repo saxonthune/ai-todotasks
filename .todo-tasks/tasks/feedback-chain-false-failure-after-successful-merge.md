@@ -213,20 +213,20 @@ Keep it to a few lines; do not restructure the doc.
 
 ## Files to Modify
 
-- `.claude/skills/todo-task/execute-chain.sh` — Step 1 (result-files-over-exit-code in the phase loop) + Step 2 (resume guard around worktree recreation).
-- `.claude/skills/todo-task/status.sh` — Step 3 (clamp `phase N/total` so it never exceeds total).
-- `.claude/skills/todo-task/lint-syntax.sh` — Step 4 (NEW: `bash -n` over skill scripts).
-- `.claude/skills/todo-task/SKILL.md` — Step 5 (short note: recover a stranded chain by re-running launch-chain).
+- `skills/todo-task/execute-chain.sh` — Step 1 (result-files-over-exit-code in the phase loop) + Step 2 (resume guard around worktree recreation).
+- `skills/todo-task/status.sh` — Step 3 (clamp `phase N/total` so it never exceeds total).
+- `skills/todo-task/lint-syntax.sh` — Step 4 (NEW: `bash -n` over skill scripts).
+- `skills/todo-task/SKILL.md` — Step 5 (short note: recover a stranded chain by re-running launch-chain).
 
 ## Verification
 
 ```bash
 # 1. All skill scripts parse cleanly (this also exercises the new lint script).
-bash .claude/skills/todo-task/lint-syntax.sh
+bash skills/todo-task/lint-syntax.sh
 
 # 2. Explicit syntax checks on the edited orchestrator + renderer.
-bash -n .claude/skills/todo-task/execute-chain.sh && echo "execute-chain.sh OK"
-bash -n .claude/skills/todo-task/status.sh && echo "status.sh OK"
+bash -n skills/todo-task/execute-chain.sh && echo "execute-chain.sh OK"
+bash -n skills/todo-task/status.sh && echo "status.sh OK"
 
 # 3. The lint script must FAIL on a deliberately broken script (negative test).
 tmp="$(mktemp -d)"; printf 'if true; then\n' > "$tmp/broken.sh"
@@ -234,11 +234,11 @@ if bash -n "$tmp/broken.sh" 2>/dev/null; then echo "NEGATIVE TEST FAILED"; else 
 rm -rf "$tmp"
 
 # 4. Confirm the false-failure reconciliation and resume guard are present.
-grep -q "classify success" .claude/skills/todo-task/execute-chain.sh && echo "Step 1 present"
-grep -q "RESUME_CHAIN" .claude/skills/todo-task/execute-chain.sh && echo "Step 2 present"
+grep -q "classify success" skills/todo-task/execute-chain.sh && echo "Step 1 present"
+grep -q "RESUME_CHAIN" skills/todo-task/execute-chain.sh && echo "Step 2 present"
 
 # 5. Confirm the progress clamp is present.
-grep -q "done_n >= total" .claude/skills/todo-task/status.sh && echo "Step 3 present"
+grep -q "done_n >= total" skills/todo-task/status.sh && echo "Step 3 present"
 ```
 
 ## Out of Scope
