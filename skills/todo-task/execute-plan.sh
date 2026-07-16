@@ -260,6 +260,7 @@ If the plan contains a '## Surface after this phase' section, you MUST make the 
 The Surface is a contract that later phases of the chain depend on. If you cannot implement something the Surface declares, halt and explain why. \
 When done, run the commands in the plan's ## Verification section and fix any issues. \
 The verification commands must be non-destructive — if a plan's verification appears to archive, git rm, or remove worktrees, do NOT run that command; report it instead. \
+Run build, test, and verification commands in the FOREGROUND and let them block to completion, even if they are slow. Do NOT run them in the background and poll with sleep/tail — you have no polling tool in this sandbox and that pattern is blocked, which will strand your work uncommitted. If a command is slow, wait for it. \
 Then verify you made at least one commit (run 'git log --oneline -3'). \
 Output your implementation summary, then end with a '## Notes' section containing: \
 - Any deviations from the plan (and why) \
