@@ -10,7 +10,9 @@ set -euo pipefail
 #
 # Flags:
 #   --force    Overwrite existing skill files non-interactively (never overwrites task-config.sh)
-#   --update   Interactive update: show version info, release notes, per-file diffs with y/n prompts
+#   --update   Interactive update: release notes plus per-file diffs with y/n prompts
+#
+# Every mode reports the version it is installing from and to.
 
 FORCE=false
 UPDATE=false
@@ -135,6 +137,37 @@ else
   SOURCE_DIR="$SCRIPT_DIR"
 fi
 
+# ─── Version transition ──────────────────────────────────────────────────────
+# Read before anything writes .version, and report in every mode — a stale install
+# is otherwise invisible, since .version is gitignored and shows up in no diff.
+
+VERSION_FILE="${PROJECT_ROOT}/.todo-tasks/.version"
+
+INSTALLED_VER=""
+AVAILABLE_VER=""
+[[ -f "$VERSION_FILE" ]] && INSTALLED_VER="$(tr -d '[:space:]' < "$VERSION_FILE")"
+[[ -f "${SOURCE_DIR}/VERSION" ]] && AVAILABLE_VER="$(tr -d '[:space:]' < "${SOURCE_DIR}/VERSION")"
+
+if [[ -z "$INSTALLED_VER" ]]; then
+  echo "Fresh install: ${AVAILABLE_VER:-unknown}"
+elif [[ "$INSTALLED_VER" == "$AVAILABLE_VER" ]]; then
+  echo "Installed version ${INSTALLED_VER} is already current."
+else
+  echo "Updating: ${INSTALLED_VER} → ${AVAILABLE_VER:-unknown}"
+fi
+echo ""
+
+# write_version
+# Writes .version and reports what landed. Called once per run, after the files copy.
+write_version() {
+  if [[ -z "$AVAILABLE_VER" ]]; then
+    echo "No VERSION file in source — left .todo-tasks/.version unchanged."
+    return
+  fi
+  echo "$AVAILABLE_VER" > "$VERSION_FILE"
+  echo "Wrote .todo-tasks/.version: ${AVAILABLE_VER}"
+}
+
 # ─── Skill files list ────────────────────────────────────────────────────────
 
 SKILL_FILES=(
@@ -162,27 +195,7 @@ mkdir -p "${PROJECT_ROOT}/.claude/skills/todo-task"
 # ─── Interactive update mode ──────────────────────────────────────────────────
 
 if $UPDATE; then
-  VERSION_FILE="${PROJECT_ROOT}/.todo-tasks/.version"
-  AVAILABLE_VERSION_FILE="${SOURCE_DIR}/VERSION"
-
-  INSTALLED_VER=""
-  AVAILABLE_VER=""
-
-  if [[ -f "$AVAILABLE_VERSION_FILE" ]]; then
-    AVAILABLE_VER="$(cat "$AVAILABLE_VERSION_FILE" | tr -d '[:space:]')"
-  fi
-
-  if [[ -f "$VERSION_FILE" ]]; then
-    INSTALLED_VER="$(cat "$VERSION_FILE" | tr -d '[:space:]')"
-    echo "Installed: ${INSTALLED_VER}"
-    echo "Available: ${AVAILABLE_VER:-unknown}"
-    echo ""
-
-    if [[ -n "$AVAILABLE_VER" ]] && [[ "$INSTALLED_VER" == "$AVAILABLE_VER" ]]; then
-      echo "Versions match. Checking for file changes..."
-      echo ""
-    fi
-  else
+  if [[ -z "$INSTALLED_VER" ]]; then
     echo "No version found (pre-versioning install). Showing all changes."
     echo ""
   fi
@@ -286,13 +299,10 @@ if $UPDATE; then
     fi
   done
 
-  # Step D: Scaffold/refresh layout (new dirs + refreshed inner .gitignore) and
-  # write the new version. Existing installs picking up this update get the new
-  # tracked directories and the latest ignore rules.
+  # Step D: Scaffold/refresh layout (new dirs + refreshed inner .gitignore).
+  # Existing installs picking up this update get the new tracked directories and
+  # the latest ignore rules.
   scaffold_layout
-  if [[ -n "$AVAILABLE_VER" ]]; then
-    echo "$AVAILABLE_VER" > "${PROJECT_ROOT}/.todo-tasks/.version"
-  fi
 
   # Update summary
   echo ""
@@ -319,6 +329,8 @@ if $UPDATE; then
     done
     echo ""
   fi
+
+  write_version
 
   exit 0
 fi
@@ -396,12 +408,6 @@ if [[ ! -f "$CONFIG_DST" ]]; then
   SCAFFOLDED_FILES+=(".todo-tasks/task-config.sh (operational settings: budget, retries, worktree prefix)")
 fi
 
-# Write installed version
-VERSION_SRC="${SOURCE_DIR}/VERSION"
-if [[ -f "$VERSION_SRC" ]]; then
-  cp "$VERSION_SRC" "${PROJECT_ROOT}/.todo-tasks/.version"
-fi
-
 # ─── Output summary ──────────────────────────────────────────────────────────
 
 if [[ ${#INSTALLED_FILES[@]} -gt 0 ]]; then
@@ -436,6 +442,9 @@ if [[ ${#SKIPPED_FILES[@]} -gt 0 ]]; then
   echo "  (pass --force to overwrite all)"
   echo ""
 fi
+
+write_version
+echo ""
 
 echo "Next steps:"
 echo "  1. Review .todo-tasks/task-config.sh (budget, retries, worktree prefix)"
