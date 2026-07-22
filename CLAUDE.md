@@ -83,9 +83,10 @@ Rules that follow from this — do not violate them:
   ```bash
   bash install.sh --force        # re-copy template → .claude/skills/todo-task/
   ```
-  (`install.sh` copies `skills/todo-task/` → `.claude/skills/todo-task/`. In this repo some
-  files may currently be hardlinked between the two as a convenience, but that is incidental
-  — treat `skills/todo-task/` as canonical and reinstall to sync.)
+  (`install.sh` copies `skills/todo-task/` → `.claude/skills/todo-task/`. The two are real,
+  separate copies so this repo exercises the same install path every other project gets —
+  do not link them, which would hide install bugs here. `install.sh` refuses to run when the
+  destination resolves to the source.)
 
 ## Installation
 

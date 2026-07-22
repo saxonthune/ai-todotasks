@@ -183,14 +183,32 @@ SKILL_FILES=(
   "skills/todo-task/launch.sh"
   "skills/todo-task/launch-chain.sh"
   "skills/todo-task/execute-chain.sh"
+  "skills/todo-task/finalize-chain.sh"
+  "skills/todo-task/wait.sh"
   "skills/todo-task/status.sh"
   "skills/todo-task/monitor.sh"
   "skills/todo-task/list-pending.sh"
   "skills/todo-task/list-drafts.sh"
   "skills/todo-task/archive.sh"
+  "skills/todo-task/lint-syntax.sh"
 )
 
 mkdir -p "${PROJECT_ROOT}/.claude/skills/todo-task"
+
+# A destination that resolves to the source (a symlinked skill directory, or the
+# repo installing into itself) makes every `cp` copy a file onto itself, which
+# fails under `set -e` before the version is written. Refuse up front and say why
+# — never silently delete a link the user may have made deliberately.
+SKILL_DST_DIR="$(cd "${PROJECT_ROOT}/.claude/skills/todo-task" && pwd -P)"
+SKILL_SRC_DIR="$(cd "${SOURCE_DIR}/skills/todo-task" && pwd -P)"
+if [[ "$SKILL_DST_DIR" == "$SKILL_SRC_DIR" ]]; then
+  echo "ERROR: .claude/skills/todo-task resolves to the source directory:" >&2
+  echo "         ${SKILL_SRC_DIR}" >&2
+  echo "" >&2
+  echo "Nothing can be copied onto itself. Remove the link and re-run:" >&2
+  echo "         rm .claude/skills/todo-task && bash install.sh --force" >&2
+  exit 1
+fi
 
 # ─── Interactive update mode ──────────────────────────────────────────────────
 
