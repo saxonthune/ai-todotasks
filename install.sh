@@ -65,15 +65,18 @@ UPDATED_FILES=()
 scaffold_layout() {
   mkdir -p "${PROJECT_ROOT}/.todo-tasks"
 
-  # Tracked lifecycle directories. Git won't track empty dirs, so seed each with
-  # a .gitkeep. Lifecycle is derived from file presence within these stable
-  # categories — never from moving files between directories.
+  # Lifecycle directories. Lifecycle is derived from file presence within these
+  # stable categories — never from moving files between directories.
+  #
+  # Only epics/ is tracked, so it needs a .gitkeep to survive an empty commit.
+  # tasks/, results/, and chains/ are ignored (see the ignore rules below), so a
+  # .gitkeep there would be ignored too and buys nothing.
   local d dir
   for d in tasks results chains epics; do
     dir="${PROJECT_ROOT}/.todo-tasks/${d}"
     if [[ ! -d "$dir" ]]; then
       mkdir -p "$dir"
-      touch "${dir}/.gitkeep"
+      [[ "$d" == "epics" ]] && touch "${dir}/.gitkeep"
       SCAFFOLDED_FILES+=(".todo-tasks/${d}/")
     fi
   done
@@ -87,10 +90,22 @@ scaffold_layout() {
   local gitignore_dst="${PROJECT_ROOT}/.todo-tasks/.gitignore"
   local existed=true
   [[ -f "$gitignore_dst" ]] || existed=false
+  # tasks/, results/, and chains/ are ignored so a task's lifecycle costs trunk
+  # exactly one commit — the squash-merge of the agent's work. They used to be
+  # tracked, which added a spec commit, a merge-result commit, and an archive
+  # deletion commit around every task; those three added files that the archive
+  # then removed, so their net effect on the tree was nothing but log noise.
+  # The orchestrator hands specs to worktrees by copying them, not by committing.
+  # epics/ stays tracked — those are hand-authored design documents, not
+  # per-run bookkeeping.
   cat > "$gitignore_dst" << 'GITIGNORE'
 inbox/
 .running/
+.done/
 .archived/
+tasks/
+results/
+chains/
 *.log
 .version
 GITIGNORE

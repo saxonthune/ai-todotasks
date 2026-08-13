@@ -26,6 +26,27 @@ Task lifecycle is managed by moving markdown files through directories:
 
 No database, no service, no lock files. `ls` is your dashboard.
 
+### One commit per task
+
+A completed task adds **exactly one commit** to trunk: the squash-merge of the agent's
+work, `feat: <slug> (agent)`. Nothing else in the lifecycle commits.
+
+This is why everything under `.todo-tasks/` except `epics/` and `task-config.sh` is
+gitignored. Specs and results are real files with real durability — they are copied into
+`.archived/` when a task is archived — but they never enter git history, so they cannot
+generate the spec, merge-result, and archive-deletion commits that used to bracket every
+task. Those three added files that the archive then deleted; their net effect on the tree
+was nothing but log noise.
+
+Two consequences to preserve when editing:
+
+- A worktree gets its spec by **copy**, never by commit. `git worktree add` produces a
+  fresh checkout that carries no ignored files, so `execute-plan.sh` copies the spec into
+  the task worktree and `execute-chain.sh` copies every phase spec into the chain worktree.
+  Forget the chain copy and phase 2 onward cannot find its spec.
+- Never test "did this merge land?" by probing for a committed result file. Compare the
+  trees instead — see `chain_merged_on_trunk` in `lib.sh`.
+
 ### Single skill, no agents
 
 Everything is accessed through one skill: `/todo-task`. Subcommands (create, triage, execute, status, monitor, archive) route to the right behavior. Shell scripts for execution live inside the skill directory. No separate agent definition — `execute-plan.sh` invokes `claude -p` directly with an inline prompt.
@@ -55,7 +76,7 @@ install.sh                    — remote installer (curl | bash)
 .claude/skills/todo-task/     — the skill (SKILL.md + shell scripts)
 .todo-tasks/                  — task files and lifecycle directories
 .todo-tasks/task-config.sh    — project-specific build/test commands
-.todo-tasks/.gitignore        — ignores .running/, .done/, .archived/, *.log
+.todo-tasks/.gitignore        — ignores tasks/, results/, chains/, inbox/, .running/, .done/, .archived/, *.log
 ```
 
 ## ⚠️ Source of truth vs. installed copy — READ THIS BEFORE EDITING THE SKILL
