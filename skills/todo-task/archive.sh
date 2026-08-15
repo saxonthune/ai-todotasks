@@ -22,6 +22,10 @@ set -uo pipefail
 #   merge_conflict / merged_with_markers → no (keep worktree for resolution)
 #   build_failure/session_failed/no_op/  → no; only with --force-failed
 #     trunk_leak / chain failed
+#
+# An explicit `archive.sh <slug>` also archives a legacy root-level
+# `.todo-tasks/<slug>.md` (a task filed before the tasks/ subdirectory existed),
+# always as a success disposition. The unscoped sweep never picks these up.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -91,6 +95,18 @@ archive_one() {
   echo "- Archived ${slug}"
 }
 
+# archive_legacy_root <slug> — archive a task filed at the legacy root location
+# .todo-tasks/<slug>.md (pre-dates the tasks/ subdirectory). No run-record,
+# worktree, results, or branch exist for these, so skip archive_one's cleanup.
+archive_legacy_root() {
+  local slug="$1"
+  mkdir -p "${TODO}/.archived"
+  cp "${TODO}/${slug}.md" "${TODO}/.archived/${TS}-${slug}.md"
+  printf '%s\n' "$SM_OVERALL_SUCCESS" > "${TODO}/.archived/${TS}-${slug}.disposition"
+  rm -f "${TODO}/${slug}.md"
+  echo "- Archived ${slug} (legacy root-level task)"
+}
+
 # archive_chain <name> — archive a completed chain's definition.
 archive_chain() {
   local name="$1"
@@ -108,6 +124,9 @@ if [[ ${#SLUGS[@]} -gt 0 ]]; then
   for slug in "${SLUGS[@]}"; do
     rec="$(bash "${SCRIPT_DIR}/report.sh" task | awk -F'\t' -v s="$slug" '$2==s{print $3"\t"$4}')"
     if [[ -z "$rec" ]]; then
+      if [[ -f "${TODO}/${slug}.md" ]]; then
+        archive_legacy_root "$slug"; archived=$((archived+1)); continue
+      fi
       echo "- Skipped ${slug} (no such task)"; continue
     fi
     phase="$(echo "$rec" | cut -f1)"; overall="$(echo "$rec" | cut -f2)"

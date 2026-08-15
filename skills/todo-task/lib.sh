@@ -202,7 +202,8 @@ write_chain_definition() {
 # source_task_config
 # Sources project-specific config, then sets defaults for any unset variables.
 # Reads: REPO_ROOT, SCRIPT_DIR (from caller scope)
-# Sets: WORKTREE_PREFIX, REPO_NAME, MAX_BUDGET, RETRY_BUDGET, MAX_RETRIES
+# Sets: WORKTREE_PREFIX, REPO_NAME, MAX_BUDGET, RETRY_BUDGET, MAX_RETRIES,
+#   TODO_TASK_PROVIDER
 source_task_config() {
   if [[ -f "${REPO_ROOT}/.todo-tasks/task-config.sh" ]]; then
     source "${REPO_ROOT}/.todo-tasks/task-config.sh"
@@ -215,6 +216,7 @@ source_task_config() {
   RETRY_BUDGET="${RETRY_BUDGET:-6.00}"
   MAX_RETRIES="${MAX_RETRIES:-4}"
   MAX_TURNS="${MAX_TURNS:-200}"
+  TODO_TASK_PROVIDER="${TODO_TASK_PROVIDER:-claude}"
 }
 
 # summarize_uncommitted <dir>

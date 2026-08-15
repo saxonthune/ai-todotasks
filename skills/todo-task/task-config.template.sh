@@ -24,3 +24,9 @@ MAX_TURNS=200
 
 # Maximum retry attempts when build/test fails
 MAX_RETRIES=4
+
+# Which headless agent provider to launch. Selects
+# skills/todo-task/providers/<name>.sh. Defaults to "claude"; only "claude"
+# ships today — a future adapter (e.g. codex) drops in as a new file with no
+# other changes needed.
+# TODO_TASK_PROVIDER="claude"

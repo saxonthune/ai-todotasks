@@ -206,6 +206,7 @@ SKILL_FILES=(
   "skills/todo-task/list-drafts.sh"
   "skills/todo-task/archive.sh"
   "skills/todo-task/lint-syntax.sh"
+  "skills/todo-task/providers/claude.sh"
 )
 
 mkdir -p "${PROJECT_ROOT}/.claude/skills/todo-task"
@@ -277,8 +278,9 @@ if $UPDATE; then
 
   for rel in "${SKILL_FILES[@]}"; do
     src="${SOURCE_DIR}/${rel}"
-    filename="$(basename "$rel")"
-    dst="${PROJECT_ROOT}/.claude/skills/todo-task/${filename}"
+    sub="${rel#skills/todo-task/}"
+    dst="${PROJECT_ROOT}/.claude/skills/todo-task/${sub}"
+    mkdir -p "$(dirname "$dst")"
 
     if [[ ! -f "$src" ]]; then
       echo "WARNING: Source file not found: $src"
@@ -288,46 +290,46 @@ if $UPDATE; then
     if [[ ! -f "$dst" ]]; then
       # New file — auto-install without prompt
       cp "$src" "$dst"
-      if [[ "$filename" == *.sh ]]; then
+      if [[ "$sub" == *.sh ]]; then
         chmod +x "$dst"
       fi
-      INSTALLED_FILES+=(".claude/skills/todo-task/${filename} (new)")
+      INSTALLED_FILES+=(".claude/skills/todo-task/${sub} (new)")
     elif diff -q "$dst" "$src" >/dev/null 2>&1; then
       # Identical — skip silently
-      SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+      SKIPPED_FILES+=(".claude/skills/todo-task/${sub}")
     else
       # Differs — show diff and prompt
       if $INTERACTIVE_STDIN; then
         if $YES_ALL; then
           cp "$src" "$dst"
-          if [[ "$filename" == *.sh ]]; then
+          if [[ "$sub" == *.sh ]]; then
             chmod +x "$dst"
           fi
-          UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+          UPDATED_FILES+=(".claude/skills/todo-task/${sub}")
         else
-          echo "--- .claude/skills/todo-task/${filename}"
+          echo "--- .claude/skills/todo-task/${sub}"
           diff -u "$dst" "$src" | head -20 || true
           echo ""
-          read -r -p "Update .claude/skills/todo-task/${filename}? [y/N/a=yes to all] " answer </dev/tty
+          read -r -p "Update .claude/skills/todo-task/${sub}? [y/N/a=yes to all] " answer </dev/tty
           if [[ "$answer" == "a" ]] || [[ "$answer" == "A" ]]; then
             YES_ALL=true
             cp "$src" "$dst"
-            if [[ "$filename" == *.sh ]]; then
+            if [[ "$sub" == *.sh ]]; then
               chmod +x "$dst"
             fi
-            UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+            UPDATED_FILES+=(".claude/skills/todo-task/${sub}")
           elif [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
             cp "$src" "$dst"
-            if [[ "$filename" == *.sh ]]; then
+            if [[ "$sub" == *.sh ]]; then
               chmod +x "$dst"
             fi
-            UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+            UPDATED_FILES+=(".claude/skills/todo-task/${sub}")
           else
-            SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+            SKIPPED_FILES+=(".claude/skills/todo-task/${sub}")
           fi
         fi
       else
-        SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+        SKIPPED_FILES+=(".claude/skills/todo-task/${sub}")
       fi
     fi
   done
@@ -373,8 +375,9 @@ fi
 YES_ALL=false
 for rel in "${SKILL_FILES[@]}"; do
   src="${SOURCE_DIR}/${rel}"
-  filename="$(basename "$rel")"
-  dst="${PROJECT_ROOT}/.claude/skills/todo-task/${filename}"
+  sub="${rel#skills/todo-task/}"
+  dst="${PROJECT_ROOT}/.claude/skills/todo-task/${sub}"
+  mkdir -p "$(dirname "$dst")"
 
   if [[ ! -f "$src" ]]; then
     echo "WARNING: Source file not found: $src"
@@ -383,41 +386,41 @@ for rel in "${SKILL_FILES[@]}"; do
 
   if [[ ! -f "$dst" ]]; then
     cp "$src" "$dst"
-    if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
-    INSTALLED_FILES+=(".claude/skills/todo-task/${filename}")
+    if [[ "$sub" == *.sh ]]; then chmod +x "$dst"; fi
+    INSTALLED_FILES+=(".claude/skills/todo-task/${sub}")
   elif $FORCE; then
     cp "$src" "$dst"
-    if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
-    INSTALLED_FILES+=(".claude/skills/todo-task/${filename}")
+    if [[ "$sub" == *.sh ]]; then chmod +x "$dst"; fi
+    INSTALLED_FILES+=(".claude/skills/todo-task/${sub}")
   elif diff -q "$src" "$dst" >/dev/null 2>&1; then
     # Identical — skip silently
-    SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+    SKIPPED_FILES+=(".claude/skills/todo-task/${sub}")
   elif [[ -t 0 ]]; then
     if $YES_ALL; then
       cp "$src" "$dst"
-      if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
-      UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+      if [[ "$sub" == *.sh ]]; then chmod +x "$dst"; fi
+      UPDATED_FILES+=(".claude/skills/todo-task/${sub}")
     else
-      echo "--- .claude/skills/todo-task/${filename}"
+      echo "--- .claude/skills/todo-task/${sub}"
       diff -u "$dst" "$src" | head -20 || true
       echo ""
-      read -r -p "Update .claude/skills/todo-task/${filename}? [y/N/a=yes to all] " answer </dev/tty
+      read -r -p "Update .claude/skills/todo-task/${sub}? [y/N/a=yes to all] " answer </dev/tty
       if [[ "$answer" == "a" ]] || [[ "$answer" == "A" ]]; then
         YES_ALL=true
         cp "$src" "$dst"
-        if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
-        UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+        if [[ "$sub" == *.sh ]]; then chmod +x "$dst"; fi
+        UPDATED_FILES+=(".claude/skills/todo-task/${sub}")
       elif [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
         cp "$src" "$dst"
-        if [[ "$filename" == *.sh ]]; then chmod +x "$dst"; fi
-        UPDATED_FILES+=(".claude/skills/todo-task/${filename}")
+        if [[ "$sub" == *.sh ]]; then chmod +x "$dst"; fi
+        UPDATED_FILES+=(".claude/skills/todo-task/${sub}")
       else
-        SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+        SKIPPED_FILES+=(".claude/skills/todo-task/${sub}")
       fi
     fi
   else
     # Non-interactive — can't prompt, skip
-    SKIPPED_FILES+=(".claude/skills/todo-task/${filename}")
+    SKIPPED_FILES+=(".claude/skills/todo-task/${sub}")
   fi
 done
 
