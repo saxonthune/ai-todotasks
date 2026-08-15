@@ -25,6 +25,27 @@ First-time setup: if todo-task scripts prompt for approval, read `.claude/skills
 
 ---
 
+## Vocabulary
+
+One preferred term per concept — use these, not coined synonyms. **Chain** and **epic**
+are orthogonal: chain is a *run* mechanism, epic is a *grouping* label; you can chain
+without an epic and group an epic without chaining.
+
+- **Task** — one unit of work moving through the lifecycle, named by a **slug**.
+- **Draft** — an untriaged idea at `inbox/{slug}.md` (gitignored). Created by `create`.
+- **Spec** — a triaged, executable task at `tasks/{slug}.md`. A draft becomes a spec by **triage**.
+- **Run** — one headless-agent execution of a spec, in an isolated **worktree**.
+- **Worktree** — the throwaway git checkout (`../{prefix}-{repo}-{slug}`) a run works in; carries ignored files (specs, results) by copy, never by commit.
+- **Trunk** — the branch runs merge back into. A successful task adds **exactly one commit** to trunk.
+- **Run-record** — `.running/{slug}.run`, the orchestrator's live state for a run. The reporter reads it; nothing else writes it.
+- **Chain** — an ordered set of specs (its **phases**) run sequentially, each accumulating onto one shared chain branch, merged to trunk as a **single squash commit**. Mechanically it runs any ordered specs; its intended use is dependent phases, where each phase is triaged against the previous phase's Surface.
+- **Phase** — one spec within a chain.
+- **Surface** — a phase's `## Surface after this phase` block: the symbols and behaviors it promises the next phase. Absent from a Surface = later phases treat it as nonexistent. A triage-time contract, not enforced at run time.
+- **Epic** — `epics/{epic}.md` with `members: a,b,c`: a tracked label over related tasks that still execute and merge independently.
+- **Derive-don't-store** — lifecycle state is computed from file presence by `report.sh`, never written as a standing status field.
+
+---
+
 ## Mode: `status` (default when no arguments)
 
 **IMPORTANT: ALWAYS run the status script FIRST. Do NOT read files, investigate errors, check git state, or do any other research before running this script. Show the script output to the user, then follow the triage flow below. Only investigate issues after the full triage flow is complete and the user asks you to.**
