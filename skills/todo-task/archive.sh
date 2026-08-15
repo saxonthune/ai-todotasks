@@ -107,14 +107,25 @@ archive_legacy_root() {
   echo "- Archived ${slug} (legacy root-level task)"
 }
 
-# archive_chain <name> — archive a completed chain's definition.
+# archive_chain <name> — archive a completed chain's definition AND its member
+# specs. A chain keeps every phase's results in its shared worktree, which is
+# removed at merge, so each member's trunk-side tasks/{slug}.md never gains a
+# results/ file and would otherwise linger as a false "pending" after the chain
+# merges. Sweep the members (as success) so a completed chain leaves nothing behind.
 archive_chain() {
   local name="$1"
   mkdir -p "${TODO}/.archived"
-  [[ -f "${TODO}/chains/${name}.md" ]] && cp "${TODO}/chains/${name}.md" "${TODO}/.archived/${TS}-chain-${name}.md"
-  rm -f "${TODO}/chains/${name}.md"
+  local def="${TODO}/chains/${name}.md" phases=""
+  [[ -f "$def" ]] && phases="$(parse_result_field "$def" phases)"
+  [[ -f "$def" ]] && cp "$def" "${TODO}/.archived/${TS}-chain-${name}.md"
+  rm -f "$def"
   printf '%s\n' "$SM_OVERALL_SUCCESS" > "${TODO}/.archived/${TS}-chain-${name}.disposition"
   echo "- Archived chain ${name}"
+
+  local slug
+  for slug in ${phases//,/ }; do
+    [[ -f "${TODO}/tasks/${slug}.md" ]] && archive_one "$slug" "$SM_OVERALL_SUCCESS"
+  done
 }
 
 archived=0
