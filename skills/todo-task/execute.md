@@ -2,6 +2,10 @@
 
 Launch a headless agent to implement a triaged plan.
 
+This mode is the **headless** route only. To implement a spec in the current
+conversation instead, do not use `execute` — implement the plan directly, let the user
+commit, then run `archive.sh --merged {slug}` (see `triage.md` Step 7 and `REFERENCE.md`).
+
 **Input**: `$ARGUMENTS[1]` is the task slug. If empty, list pending tasks and ask. Supports `--no-merge` and `--chain`.
 
 ## Single plan execution

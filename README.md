@@ -1,6 +1,6 @@
 # ai-todotasks
 
-A task lifecycle system for Claude Code. Write task ideas as markdown, triage them into executable specs, then launch headless Claude agents to implement them in isolated git worktrees.
+A task lifecycle system for Claude Code. Write task ideas as markdown, triage them into executable specs, then implement each spec either in the session that triaged it (or a later one) or by launching a headless Claude agent in an isolated git worktree. A draft is also a durable handoff between sessions.
 
 ## Install
 
@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/saxonthune/ai-todotasks/main/instal
 
 ```
 /todo-task create <description>   # file a task idea
-/todo-task triage <slug>          # refine into an executable spec
+/todo-task triage <slug>          # refine into an executable spec, then implement in-session or launch
 /todo-task execute <slug>         # launch a headless agent in a worktree
 /todo-task status                 # what's running, done, pending
 /todo-task monitor                # live dashboard

@@ -1,17 +1,30 @@
 # todo-task: triage mode
 
-Refine a pending task from a rough idea into an executable spec that a headless agent can implement without asking questions. **This is interactive** — present findings, ask questions, get alignment before writing the spec.
+Refine a pending task from a rough idea into an executable spec that whoever implements it — a headless agent, this session, or a later session that picks it up — can follow without re-deriving the context. The bar is the same either way: every design question resolved before the spec is written. **This is interactive** — present findings, ask questions, get alignment before writing the spec.
 
 **Input**: `$ARGUMENTS[1]` is the task slug. If empty, list pending tasks and ask.
 
 ## Step 1: List or select
 
-If no slug provided, list untriaged drafts (the inbox):
+Always list the untriaged drafts first — the user often gives an approximate name, not
+the exact slug:
 ```bash
 bash .claude/skills/todo-task/list-drafts.sh
 ```
 
-Present tasks to the user with `AskUserQuestion`:
+**Resolving the slug the user gave:**
+
+- Exact match in the list → use it.
+- No exact match → look for a near match: a slug that is a substring of what they typed
+  (or vice versa), shares most words, or is an obvious rewording of the same idea. If
+  exactly one draft clearly fits, name it and confirm ("No `foo`; did you mean
+  `foo-bar-baz`?") before proceeding.
+- Several plausible matches, or none → present the candidates (or the whole list) with
+  `AskUserQuestion` and let the user pick.
+- The name might instead be an already-promoted spec in `tasks/` (a re-triage) — check
+  there too before concluding nothing matches.
+
+When no slug was provided at all, present the drafts with `AskUserQuestion`:
 
 ```typescript
 AskUserQuestion({
@@ -81,7 +94,7 @@ If the task is too large (10+ files, multiple independent features, needs mid-im
 
 ## Step 6: Rewrite as executable spec
 
-After the user has answered all questions and confirmed the approach, **promote the draft**: write the executable spec to `.todo-tasks/tasks/{slug}.md` and delete the `.todo-tasks/inbox/{slug}.md` draft. Do NOT commit — the spec stays uncommitted (it doesn't block launching, and the orchestrator commits it automatically when you execute). Use this structure:
+After the user has answered all questions and confirmed the approach, **promote the draft**: write the executable spec to `.todo-tasks/tasks/{slug}.md` and delete the `.todo-tasks/inbox/{slug}.md` draft. Do NOT commit — the spec stays uncommitted whichever way it gets implemented (it doesn't block launching, a run's orchestrator commits it automatically, and an in-session implementation never needs a separate spec commit). Use this structure:
 
 ````markdown
 # {Title}
@@ -138,7 +151,7 @@ After the user has answered all questions and confirmed the approach, **promote 
 
 The `## Surface after this phase` block is the contract that downstream phases triage against. Write it precisely: if a symbol is not listed, later phases will treat it as nonexistent.
 
-> The `## Verification` section MUST contain at least one fenced bash/sh code block. execute-plan.sh parses commands from that block to run as the verification gate.
+> The `## Verification` section MUST contain at least one fenced bash/sh code block. execute-plan.sh parses commands from that block to run as the verification gate. Write it even when you expect an in-session implementation: it costs nothing, it documents "done", and it keeps the spec launch-compatible if the plan changes.
 
 > **Verification must be non-destructive.** The block runs inside the agent's
 > worktree and whatever it commits merges to trunk. Never invoke `archive.sh`
@@ -146,26 +159,34 @@ The `## Surface after this phase` block is the contract that downstream phases t
 > tasks. Treat `.todo-tasks/` as orchestrator-owned and off-limits to a task's own
 > verification. Test exit codes with a scoped, side-effect-free invocation.
 
-## Step 7: Confirm and hand off
+## Step 7: Confirm and pick an implementation route
 
-Tell the user the task has been triaged with a brief summary of the plan, then offer to launch:
+Tell the user the task has been triaged with a brief summary of the plan, then ask how to
+implement it:
 
 ```typescript
 AskUserQuestion({
   questions: [{
-    question: "Plan is triaged and ready. Launch background execution?",
-    header: "Execute",
+    question: "Plan is triaged and ready. How should it be implemented?",
+    header: "Implement",
     options: [
-      { label: "Launch now (Recommended)", description: "Run execute-plan in background, merge on success" },
-      { label: "Launch (no merge)", description: "Run execute-plan, leave branch for manual review" },
-      { label: "Not yet", description: "I want to review the plan file first" }
+      { label: "In this session", description: "I implement the plan now in this conversation; you commit; then archive.sh --merged {slug}" },
+      { label: "Launch headless", description: "Run execute-plan in a background worktree, squash-merge one commit on success" },
+      { label: "Launch (no merge)", description: "Run execute-plan, leave the branch for manual review" },
+      { label: "Hand off", description: "Leave the spec in tasks/ for a later session to pick up" }
     ],
     multiSelect: false
   }]
 })
 ```
 
-If the user says launch, switch to execute mode for that slug.
+- **In this session** — implement the plan directly, following the same spec. Let the
+  user commit the work (do not commit for them). Once it is committed, run
+  `bash .claude/skills/todo-task/archive.sh --merged {slug}` to close the task — this is
+  the sanctioned exit; the spec otherwise lingers as `pending` in status output.
+- **Launch headless** / **Launch (no merge)** — switch to execute mode for that slug.
+- **Hand off** — stop here. The spec is durable on disk; any later session can read it
+  and implement it by either route.
 
 ## Triaging Guidelines
 

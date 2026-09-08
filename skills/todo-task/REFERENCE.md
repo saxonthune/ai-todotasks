@@ -40,6 +40,25 @@ Phase is computed by the reporter from file presence:
 | run-record + dead PID + no `merge.md` | crashed (result read from the worktree) |
 | `agent.md` + `merge.md` | done (classified success/failure) |
 
+### In-session implementation (no run)
+
+A spec does not have to go to a headless run. A session — the one that triaged it, or a
+later one that picked it up — can implement the plan directly in the conversation. There
+is no run-record and no `results/` file, so the reporter keeps classifying the spec as
+`pending` until it is archived. The sanctioned close-out is:
+
+```bash
+bash .claude/skills/todo-task/archive.sh --merged {slug}
+```
+
+`--merged` means "the operator asserts this work reached trunk." It takes any non-running
+task, including a spec that never ran, and archives it as a success. Commit the actual
+work first (the user does this); an in-session implementation carries no separate spec
+commit, and the one-commit-per-task guarantee is specific to the headless route — a hand
+implementation commits however the user wants.
+
+### Spec-to-git rule
+
 The spec never enters git. `execute-plan.sh` copies it into the agent's worktree, and
 `execute-chain.sh` copies every phase spec into the chain worktree, because `git worktree
 add` gives a fresh checkout that carries no ignored files. The path is ignored inside the
@@ -99,7 +118,8 @@ are skipped and only the final chain→trunk merge is re-attempted — no manual
 - `create` only writes `inbox/{slug}.md` (gitignored draft). Never commit it.
 - `triage` promotes the draft → `tasks/{slug}.md` and deletes the inbox draft (and may add a slug to an epic's `members:` list). Do not commit the spec — the orchestrator commits it at launch.
 - `execute` launches agents via shell scripts; it never moves files between directories.
-- **Never hand-commit task specs** — `execute-plan.sh`/`execute-chain.sh` commit them automatically before cutting the worktree.
+- A spec implemented **in-session** is closed with `archive.sh --merged {slug}` once the user has committed the work — same exit as a hand-finished run.
+- **Never hand-commit task specs** — `execute-plan.sh`/`execute-chain.sh` commit them automatically before cutting the worktree. An in-session implementation never commits the spec at all; the user commits the work.
 - **Never hand-edit `results/*.agent.md`** — it is worktree-owned and carried by the merge.
 - **Never write to `.running/`** — the run-record is the orchestrator's; the reporter only reads it.
 - **Never hand-move files** to archive — run `archive.sh` (it copies to `.archived/`, then removes).
