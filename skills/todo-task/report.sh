@@ -38,7 +38,15 @@ WANT="${1:-all}"
 NONE="-"
 NOW="$(date +%s)"
 
-mtime() { stat -c %Y "$1" 2>/dev/null || echo "$NOW"; }
+mtime() {
+  if secs=$(stat -c %Y "$1" 2>/dev/null); then
+    printf '%s\n' "$secs"
+  elif secs=$(stat -f %m "$1" 2>/dev/null); then
+    printf '%s\n' "$secs"
+  else
+    printf '%s\n' "$NOW"
+  fi
+}
 age_of() { echo "$(( NOW - $(mtime "$1") ))"; }
 
 # resolve_agent_md <slug> <run_file>
