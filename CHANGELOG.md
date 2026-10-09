@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026.10.09
+
+- Add: `/todo-task handoff [write|latest|list]` — timestamped notes in the new gitignored
+  `.todo-tasks/handoffs/` for continuing in-progress work across compaction or sessions.
+  "See latest handoff" resolves by the timestamp in the file name, via `latest-handoff.sh`.
+  Handoffs sit outside the task lifecycle; delete old ones by hand.
+- Migration: existing handoff-style drafts in `inbox/` are not moved. Rename them to
+  `handoffs/{YYYY-MM-DDTHHMM}-{slug}.md` if you want `latest` to find them.
+
 ## 2026.06.13
 
 **Clean break — re-architected state as tracked files (derive, don't store).** No

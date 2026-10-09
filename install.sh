@@ -85,6 +85,10 @@ scaffold_layout() {
   # — a filed idea is not yet work and never touches git history.
   mkdir -p "${PROJECT_ROOT}/.todo-tasks/inbox"
 
+  # handoffs/ holds timestamped notes for continuing in-progress work. Gitignored,
+  # outside the lifecycle; the developer deletes old ones by hand.
+  mkdir -p "${PROJECT_ROOT}/.todo-tasks/handoffs"
+
   # Inner .gitignore — always overwrite so updated ignore rules land. This is the
   # tool's file, distinct from the repo's root .gitignore (which we never edit).
   local gitignore_dst="${PROJECT_ROOT}/.todo-tasks/.gitignore"
@@ -100,6 +104,7 @@ scaffold_layout() {
   # per-run bookkeeping.
   cat > "$gitignore_dst" << 'GITIGNORE'
 inbox/
+handoffs/
 .running/
 .done/
 .archived/
@@ -191,6 +196,7 @@ SKILL_FILES=(
   "skills/todo-task/create.md"
   "skills/todo-task/triage.md"
   "skills/todo-task/execute.md"
+  "skills/todo-task/handoff.md"
   "skills/todo-task/REFERENCE.md"
   "skills/todo-task/lib.sh"
   "skills/todo-task/report.sh"
@@ -204,6 +210,7 @@ SKILL_FILES=(
   "skills/todo-task/monitor.sh"
   "skills/todo-task/list-pending.sh"
   "skills/todo-task/list-drafts.sh"
+  "skills/todo-task/latest-handoff.sh"
   "skills/todo-task/archive.sh"
   "skills/todo-task/lint-syntax.sh"
   "skills/todo-task/providers/claude.sh"

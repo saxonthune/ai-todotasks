@@ -14,6 +14,7 @@ never lifecycle states.
 ```
 .todo-tasks/
   inbox/{slug}.md            IGNORED   untriaged draft — written by create, local-only
+  handoffs/{ts}-{slug}.md    IGNORED   handoff — outside the lifecycle, deleted by hand
   tasks/{slug}.md            IGNORED   spec — promoted by triage; copied into each worktree
   results/{slug}.agent.md    IGNORED   agent outcome — written on trunk by the orchestrator
   results/{slug}.merge.md    IGNORED   merge outcome — written on trunk after the merge

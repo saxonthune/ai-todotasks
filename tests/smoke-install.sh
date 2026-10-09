@@ -66,6 +66,8 @@ assert_file "monitor.sh installed"      "${SKILL_DIR}/monitor.sh"
 assert_file "list-pending.sh installed" "${SKILL_DIR}/list-pending.sh"
 assert_file "list-drafts.sh installed"  "${SKILL_DIR}/list-drafts.sh"
 assert_file "archive.sh installed"      "${SKILL_DIR}/archive.sh"
+assert_file "handoff.md installed"      "${SKILL_DIR}/handoff.md"
+assert_file "latest-handoff.sh installed" "${SKILL_DIR}/latest-handoff.sh"
 
 # Belt-and-suspenders: lib.sh specifically (regression for the install bug)
 assert_file "lib.sh exists (regression)" "${SKILL_DIR}/lib.sh"
@@ -88,6 +90,8 @@ assert_eq ".gitignore ignores inbox/" "$(grep -c '^inbox/' "$GITIGNORE" 2>/dev/n
 
 # inbox/ scaffolded (gitignored, no .gitkeep)
 assert_dir "inbox/ dir created" "${TMPDIR_TEST}/.todo-tasks/inbox"
+assert_dir "handoffs/ dir created" "${TMPDIR_TEST}/.todo-tasks/handoffs"
+assert_eq ".gitignore ignores handoffs/" "$(grep -c '^handoffs/' "$GITIGNORE" 2>/dev/null)" "1"
 
 
 # Version file matches repo VERSION

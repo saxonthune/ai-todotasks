@@ -1,6 +1,6 @@
 ---
 name: todo-task
-description: "Task lifecycle manager: create ideas, triage into specs, implement them in-session or via headless agents, check status, monitor agents. Usage: /todo-task [create|triage|execute|status|monitor] [args]"
+description: "Task lifecycle manager: create ideas, triage into specs, implement them in-session or via headless agents, check status, monitor agents, write and resume timestamped session handoffs (\"see latest handoff\"). Usage: /todo-task [create|triage|execute|status|monitor|handoff] [args]"
 ---
 
 # todo-task
@@ -16,6 +16,9 @@ Route on `$ARGUMENTS[0]`. Each non-trivial mode lives in a sibling file — **re
 | `/todo-task create {description}` | File a new task | `create.md` |
 | `/todo-task triage {slug}` | Refine a task into an executable spec | `triage.md` |
 | `/todo-task execute {slug}` | Launch headless agent to implement a plan | `execute.md` |
+| `/todo-task handoff [write\|latest\|list]` | Write or resume a timestamped handoff | `handoff.md` |
+
+Plain-word requests such as "see latest handoff" or "write a handoff" route to `handoff`.
 
 A spec reaches "done" by one of two routes, and triage picks between them with the
 user:
@@ -28,9 +31,10 @@ user:
   verifies, and squash-merges one commit to trunk. This is the path for well-bounded
   work that needs no mid-implementation judgement.
 
-A draft is also a durable handoff between sessions: one session can file a task purely
+A draft can also carry an idea between sessions: one session can file a task purely
 so a later session has the context to triage and implement it. Launch is not the
-assumed destination.
+assumed destination. To carry work that is already *in progress* across compaction or
+to a later session, write a **handoff** instead (`handoff.md`).
 
 All files are in `.claude/skills/todo-task/`. For the lifecycle model (derive-don't-store),
 manual merge-conflict cleanup, deferred-chain finalization, and the invariant rules, read
@@ -57,6 +61,7 @@ without an epic and group an epic without chaining.
 - **Phase** — one spec within a chain.
 - **Surface** — a phase's `## Surface after this phase` block: the symbols and behaviors it promises the next phase. Absent from a Surface = later phases treat it as nonexistent. A triage-time contract, not enforced at run time.
 - **Epic** — `epics/{epic}.md` with `members: a,b,c`: a tracked label over related tasks that still execute and merge independently.
+- **Handoff** — `handoffs/{YYYY-MM-DDTHHMM}-{slug}.md` (gitignored): notes that let a later session continue in-progress work. Not a task — no lifecycle, never archived; the developer deletes old ones by hand. "Latest" means the newest timestamp in the file name.
 - **Derive-don't-store** — lifecycle state is computed from file presence by `report.sh`, never written as a standing status field.
 
 ---

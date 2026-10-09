@@ -7,6 +7,10 @@ File a task as a durable markdown note. Two first-class uses:
   detail that a different session can triage it, discuss it with the user, and implement
   it. The inbox draft is shared memory between sessions, not only a note-to-self.
 
+To carry work that is already in progress (for example across compaction), write a
+handoff instead — see `handoff.md`. A draft records work to do; a handoff records where
+work in progress stands.
+
 **Input**: everything after `create` is the task description. If empty, ask the user what to file.
 
 ## Step 1: Generate a slug
