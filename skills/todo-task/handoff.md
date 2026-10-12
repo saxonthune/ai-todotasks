@@ -16,11 +16,20 @@ Route on the word after `handoff`:
 | Command | Action |
 |---------|--------|
 | `/todo-task handoff write {topic}` (or `handoff {topic}`) | Write a new handoff |
+| `/todo-task handoff compact` | Rewrite the newest handoff to its progress and next steps, before `/compact` |
 | `/todo-task handoff latest` | Read the newest handoff and continue from it |
 | `/todo-task handoff list` | List all handoffs, newest first |
 
 Requests in plain words map the same way: "see latest handoff", "pick up the last
-handoff", or "resume from the handoff" mean `latest`; "write a handoff" means `write`.
+handoff", "resume from the handoff", or "continue" right after a compaction mean
+`latest`; "compact the handoff" means `compact`; "write a handoff" means `write`.
+
+A typical loop across a context compaction:
+
+1. The user asks to compact the handoff. The agent rewrites it (see Compact below).
+2. The user runs `/compact`.
+3. The user asks to continue. The agent reads the newest handoff and resumes from its
+   next steps.
 
 ## Write
 
@@ -39,10 +48,13 @@ Template:
 
 {What the work is for, and what done looks like.}
 
-## State
+## Progress
 
-{What is finished, what is half-finished, and what is untouched. Name files and
-functions. Say whether the working tree has uncommitted changes.}
+- [x] {Finished step — name files and functions}
+- [ ] {Remaining step}
+
+{Commits made, latest check or test results, and whether the working tree has
+uncommitted changes.}
 
 ## Decisions
 
@@ -59,6 +71,31 @@ functions. Say whether the working tree has uncommitted changes.}
 
 Write for a session that has none of the current context. If the work started from a
 task spec, name its slug instead of copying the spec.
+
+## Compact
+
+Compacting a handoff rewrites it so the session after `/compact` can resume from it
+alone. The current session still holds the full context, so this is the last chance to
+record what that context knows.
+
+1. Find the handoff: the one this session wrote or resumed from, or else the newest
+   (`latest-handoff.sh`). If none exists, write one first (see Write).
+2. Rewrite that file in place. Keep its file name, so it stays the same handoff and stays
+   newest. Under the title, add or replace the line `Compacted: {date +'%Y-%m-%d %H:%M'}`.
+3. Bring every section up to date with this session's work, then cut it down:
+   - **Goal** and **Decisions** — keep, updated. Decisions stop the next session from
+     reopening settled questions.
+   - **Progress** — checkable indicators, not narrative: steps done and remaining as a
+     checklist, commits made (hash and subject), tests or checks with their latest
+     result, and whether the working tree has uncommitted changes. A handoff written
+     before this section existed may have a `## State` section; replace it.
+   - **Next steps** — the intended next actions, in order, concrete enough to start on
+     without asking. Put the very next action first.
+   - **References** — keep what the next steps need; drop the rest.
+   - Drop history: dead ends, how a problem was found, and details of finished steps,
+     unless a next step depends on them.
+4. Tell the user the handoff is compacted, with its path, and that they can run
+   `/compact` and then ask to continue.
 
 ## Latest
 

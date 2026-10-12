@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.10.11
+
+- Add: `/todo-task handoff compact` — rewrites the newest handoff in place to its goal,
+  decisions, progress indicators, and next steps, ready for `/compact` and then
+  "continue".
+- Change: the handoff template's `## State` section is now `## Progress`, a checklist
+  plus commits, check results, and working-tree status.
+
 ## 2026.10.09
 
 - Add: `/todo-task handoff [write|latest|list]` — timestamped notes in the new gitignored

@@ -1,6 +1,6 @@
 ---
 name: todo-task
-description: "Task lifecycle manager: create ideas, triage into specs, implement them in-session or via headless agents, check status, monitor agents, write and resume timestamped session handoffs (\"see latest handoff\"). Usage: /todo-task [create|triage|execute|status|monitor|handoff] [args]"
+description: "Task lifecycle manager: create ideas, triage into specs, implement them in-session or via headless agents, check status, monitor agents, write, compact, and resume timestamped session handoffs (\"see latest handoff\"). Usage: /todo-task [create|triage|execute|status|monitor|handoff] [args]"
 ---
 
 # todo-task
@@ -16,9 +16,10 @@ Route on `$ARGUMENTS[0]`. Each non-trivial mode lives in a sibling file — **re
 | `/todo-task create {description}` | File a new task | `create.md` |
 | `/todo-task triage {slug}` | Refine a task into an executable spec | `triage.md` |
 | `/todo-task execute {slug}` | Launch headless agent to implement a plan | `execute.md` |
-| `/todo-task handoff [write\|latest\|list]` | Write or resume a timestamped handoff | `handoff.md` |
+| `/todo-task handoff [write\|compact\|latest\|list]` | Write, compact, or resume a timestamped handoff | `handoff.md` |
 
-Plain-word requests such as "see latest handoff" or "write a handoff" route to `handoff`.
+Plain-word requests such as "see latest handoff", "compact the handoff", or "write a
+handoff" route to `handoff`.
 
 A spec reaches "done" by one of two routes, and triage picks between them with the
 user:
